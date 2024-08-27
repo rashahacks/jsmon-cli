@@ -15,7 +15,8 @@ JSMON CLI is a command-line interface for interacting with the jsmon.sh web appl
 
 ## Installation
 
-[Add installation instructions here]
+```git clone https://github.com/rashahacks/jsmon-cli; cd jsmon-cli```
+```go build -o jsmon```
 
 ## Usage
     ./jsmon [flags]
