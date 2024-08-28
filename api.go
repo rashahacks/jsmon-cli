@@ -199,15 +199,10 @@ func getDomains() {
 		fmt.Println("Error parsing JSON:", err)
 		return
 	}
-
-	// Pretty print JSON
-	prettyJSON, err := json.MarshalIndent(domains, "", "  ")
-	if err != nil {
-		fmt.Println("Error formatting JSON:", err)
-		return
+	// Print each domain on a new line
+	for _, domain := range domains {
+		fmt.Println(domain)
 	}
-
-	fmt.Println(string(prettyJSON))
 }
 
 func scanFileEndpoint(fileId string) {

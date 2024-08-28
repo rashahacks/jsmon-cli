@@ -62,13 +62,10 @@ func getS3Domains(domains []string) {
 
 	s3Domains, ok := response["s3Domains"].([]interface{})
 	if ok && len(s3Domains) > 0 {
-		fmt.Println("S3 Domains:")
 		for _, domain := range s3Domains {
 			if domainStr, ok := domain.(string); ok {
 				fmt.Println(domainStr)
 			}
 		}
-	} else {
-		fmt.Println("No S3 Domains found")
 	}
 }

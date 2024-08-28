@@ -55,7 +55,6 @@ func getDomainUrls(domains []string) {
 
 	// Extract data
 	if data, ok := response["data"].(map[string]interface{}); ok {
-		fmt.Println("Extracted URL and Domain:")
 
 		// Print extracted domains
 		if extractedDomains, ok := data["extractedDomains"].([]interface{}); ok {

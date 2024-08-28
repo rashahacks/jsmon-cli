@@ -56,7 +56,6 @@ func getApiPaths(domains []string) {
 
 	// Access and print API paths
 	if apiPaths, ok := response["apiPaths"].([]interface{}); ok {
-		fmt.Println("API Paths:")
 		for _, path := range apiPaths {
 			if pathStr, ok := path.(string); ok {
 				fmt.Println(pathStr)
@@ -64,7 +63,5 @@ func getApiPaths(domains []string) {
 				fmt.Println("Error: Invalid type in 'apiPaths'")
 			}
 		}
-	} else {
-		fmt.Println("Error: 'apiPaths' field not found or not in expected format")
 	}
 }
