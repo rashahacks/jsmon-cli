@@ -1,0 +1,13 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Credentials
+.jsmon/credentials
+
+# Configuration
+config.go
+
+jsmon

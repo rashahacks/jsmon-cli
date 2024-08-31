@@ -23,9 +23,9 @@ func main() {
 	apiKeyFlag := flag.String("apikey", "", "API key for authentication")
 	scanFileId := flag.String("scanFile", "", "File ID to scan")
 	uploadFile := flag.String("uploadFile", "", "File to upload giving path to the file locally.")
-	getAllResults := flag.String("automationData", "", "Get all automation results")
+	getAllResults := flag.String("getAutomationData", "", "Get all automation results")
 	size := flag.Int("size", 10000, "Number of results to fetch (default 10000)")
-	getScannerResultsFlag := flag.Bool("scannerData", false, "Get scanner results")
+	getScannerResultsFlag := flag.Bool("getScannerData", false, "Get scanner results")
 	cron := flag.String("cron", "", "Set cronjob.")
 	cronNotification := flag.String("notifications", "", "Set cronjob notification channel.")
 	cronTime := flag.Int64("time", 0, "Set cronjob time.")
@@ -36,18 +36,19 @@ func main() {
 	viewurlsSize := flag.Int("urlSize", 10, "Number of URLs to fetch")
 	scanDomainFlag := flag.String("scanDomain", "", "Domain to automate scan")
 	wordsFlag := flag.String("words", "", "Comma-separated list of words to include in the scan")
-
+	urlswithmultipleResponse := flag.Bool("urlswithmultipleresponse", false, "check for urls with multiple responses.")
 	getDomainsFlag := flag.Bool("getDomains", false, "Get all domains for the user")
 	var headers stringSliceFlag
 	flag.Var(&headers, "H", "Custom headers in the format 'Key: Value' (can be used multiple times)")
 
 	usageFlag := flag.Bool("usage", false, "View user profile")
-	viewfiles := flag.Bool("files", false, "view all files")
-	viewEmails := flag.String("Emails", "", "view all Emails for specified domains")
-	s3domains := flag.String("S3Domains", "", "get all S3Domains for specified domains")
-	ips := flag.String("ips", "", "get all IPs for specified domains")
-	domainUrl := flag.String("DomainUrls", "", "get Domain URLs for specified domains")
-	apiPath := flag.String("api", "", "get the APIs for specified domains")
+	viewfiles := flag.Bool("getFiles", false, "view all files")
+	viewEmails := flag.String("getEmails", "", "view all Emails for specified domains")
+	s3domains := flag.String("getS3Domains", "", "get all S3Domains for specified domains")
+	ips := flag.String("getIps", "", "get all IPs for specified domains")
+	gql := flag.String("getGqlOps", "", "get graph QL operations")
+	domainUrl := flag.String("getDomainUrls", "", "get Domain URLs for specified domains")
+	apiPath := flag.String("getApiPaths", "", "get the APIs for specified domains")
 	compareFlag := flag.String("compare", "", "Compare two js responses by jsmon_ids (format: JSMON_ID1,JSMON_ID2)")
 	flag.Parse()
 	flag.Usage = func() {
@@ -66,12 +67,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -apikey string          API key for authentication\n")
 
 		fmt.Fprintf(os.Stderr, "\nOUTPUT:\n")
-		fmt.Fprintf(os.Stderr, "  -automationData string  Get all automation results\n")
-		fmt.Fprintf(os.Stderr, "  -scannerData            Get scanner results\n")
-		fmt.Fprintf(os.Stderr, "  -urls                   View all URLs\n")
-		fmt.Fprintf(os.Stderr, "  -size int               Number of URLs to fetch (default 10)\n")
-		fmt.Fprintf(os.Stderr, "  -files                  View all files\n")
+		fmt.Fprintf(os.Stderr, "  -getAutomationData string  Get all automation results\n")
+		fmt.Fprintf(os.Stderr, "  -getScannerData            Get scanner results\n")
+		fmt.Fprintf(os.Stderr, "  -getUrls                   View all URLs\n")
+		fmt.Fprintf(os.Stderr, "  -urlSize int               Number of URLs to fetch (default 10)\n")
+		fmt.Fprintf(os.Stderr, "  -getFiles                  View all files\n")
 		fmt.Fprintf(os.Stderr, "  -usage                  View user profile\n")
+		fmt.Fprintf(os.Stderr, "  -urlswithmultipleresponse  View user profile\n")
 
 		fmt.Fprintf(os.Stderr, "\nCRON JOB:\n")
 		fmt.Fprintf(os.Stderr, "  -cron string            Set, update, or stop cronjob\n")
@@ -85,11 +87,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -H string               Custom headers (Key: Value, can be used multiple times)\n")
 		fmt.Fprintf(os.Stderr, "  -words string           Comma-separated list of words to include in the scan\n")
 		fmt.Fprintf(os.Stderr, "  -getDomains             Get all domains for the user\n")
-		fmt.Fprintf(os.Stderr, "  -Emails string          View all Emails for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -S3Domains string       Get all S3 Domains for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -ips string             Get all IPs for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -DomainUrls string      Get Domain URLs for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -api string             Get the APIs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getEmails string          View all Emails for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getS3Domains string       Get all S3 Domains for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getIps string             Get all IPs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getDomainUrls string      Get Domain URLs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getApiPaths string             Get the APIs for specified domains\n")
 		fmt.Fprintf(os.Stderr, "  -compare string         Compare two JS responses by JSMON_IDs (format: ID1,ID2)\n")
 	}
 
@@ -124,6 +126,8 @@ func main() {
 		viewFiles()
 	case *uploadUrl != "":
 		uploadUrlEndpoint(*uploadUrl, headers)
+	case *urlswithmultipleResponse:
+		urlsmultipleResponse()
 	case *viewEmails != "":
 		domains := strings.Split(*viewEmails, ",")
 		for i, domain := range domains {
@@ -142,6 +146,12 @@ func main() {
 			domains[i] = strings.TrimSpace(domain)
 		}
 		getAllIps(domains)
+	case *gql != "":
+		domains := strings.Split(*gql, ",")
+		for i, domain := range domains {
+			domains[i] = strings.TrimSpace(domain)
+		}
+		getGqlOps(domains)
 	case *domainUrl != "":
 		domains := strings.Split(*domainUrl, ",")
 		for i, domain := range domains {
