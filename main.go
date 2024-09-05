@@ -37,7 +37,7 @@ func main() {
 	viewurlsSize := flag.Int("urlSize", 10, "Number of URLs to fetch")
 	scanDomainFlag := flag.String("scanDomain", "", "Domain to automate scan")
 	wordsFlag := flag.String("words", "", "Comma-separated list of words to include in the scan")
-	urlswithmultipleResponse := flag.Bool("urlswithmultipleresponse", false, "check for urls with multiple responses.")
+	urlswithmultipleResponse := flag.Bool("changedUrls", false, "check for urls with multiple responses.")
 	getDomainsFlag := flag.Bool("getDomains", false, "Get all domains for the user")
 	var headers stringSliceFlag
 	flag.Var(&headers, "H", "Custom headers in the format 'Key: Value' (can be used multiple times)")
@@ -52,7 +52,7 @@ func main() {
 	apiPath := flag.String("getApiPaths", "", "get the APIs for specified domains")
 	fileExtensionUrls := flag.String("getFileExtensionUrls", "", "get the urls containing any type of file")
 	socialMediaUrls := flag.String("getSocialMediaUrls", "", "get the urls for the social media sites")
-	domainStatus := flag.String("getDomainStatus", "" , "get the availabilty of domains")
+	domainStatus := flag.String("getDomainStatus", "", "get the availabilty of domains")
 	queryParamsUrls := flag.String("getQueryParamsUrls", "", "get the urls containing query params for the specified domain")
 	localhostUrls := flag.String("getLocalhostUrls", "", "get the urls which has localhost in the hostname for the specified domain")
 	filteredPortUrls := flag.String("getUrlsWithPort", "", "get the urls containing a port number in the hostname for the specified domain")
@@ -66,23 +66,23 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 
 		fmt.Fprintf(os.Stderr, "INPUT:\n")
-		fmt.Fprintf(os.Stderr, "  -scanUrl string         URL or scan ID to rescan\n")
-		fmt.Fprintf(os.Stderr, "  -uploadUrl string       URL to upload for scanning\n")
-		fmt.Fprintf(os.Stderr, "  -scanFile string        File ID to scan\n")
-		fmt.Fprintf(os.Stderr, "  -uploadFile string      File to upload (local path)\n")
-		fmt.Fprintf(os.Stderr, "  -scanDomain string      Domain to automate scan\n")
+		fmt.Fprintf(os.Stderr, "  -scanUrl <jsmonId>        jsmonId to rescan.\n")
+		fmt.Fprintf(os.Stderr, "  -uploadUrl <url>       URL to scan.\n")
+		fmt.Fprintf(os.Stderr, "  -scanFile <fileId>        fileId to rescan.\n")
+		fmt.Fprintf(os.Stderr, "  -uploadFile <local file path>      File to scan.\n")
+		fmt.Fprintf(os.Stderr, "  -scanDomain <hostname>      Domain to scan.\n")
 
 		fmt.Fprintf(os.Stderr, "\nAUTHENTICATION:\n")
-		fmt.Fprintf(os.Stderr, "  -apikey string          API key for authentication\n")
+		fmt.Fprintf(os.Stderr, "  -apikey <XXXXXX0-bXX6-49bX-XXXX-c48XXXX09XX9>          API key for authentication\n")
 
 		fmt.Fprintf(os.Stderr, "\nOUTPUT:\n")
-		fmt.Fprintf(os.Stderr, "  -getAutomationData string  Get all automation results\n")
-		fmt.Fprintf(os.Stderr, "  -getScannerData            Get scanner results\n")
+		fmt.Fprintf(os.Stderr, "  -getAutomationData <domain>  Get all Analysis results of domain.\n")
+		fmt.Fprintf(os.Stderr, "  -getScannerData            Get scanner results of domain.\n")
 		fmt.Fprintf(os.Stderr, "  -getUrls                   View all URLs\n")
-		fmt.Fprintf(os.Stderr, "  -urlSize int               Number of URLs to fetch (default 10)\n")
+		fmt.Fprintf(os.Stderr, "  -urlSize int               Number of URLs to fetch (default 10), to be used with only -getUrls.\n")
 		fmt.Fprintf(os.Stderr, "  -getFiles                  View all files\n")
-		fmt.Fprintf(os.Stderr, "  -usage                  View user profile\n")
-		fmt.Fprintf(os.Stderr, "  -urlswithmultipleresponse  View user profile\n")
+		fmt.Fprintf(os.Stderr, "  -usage                 	 View user profile\n")
+		fmt.Fprintf(os.Stderr, "  -changedUrls  			 View Urls with multiple/changed responses.\n")
 
 		fmt.Fprintf(os.Stderr, "\nCRON JOB:\n")
 		fmt.Fprintf(os.Stderr, "  -cron string            Set, update, or stop cronjob\n")
@@ -94,22 +94,23 @@ func main() {
 
 		fmt.Fprintf(os.Stderr, "\nADDITIONAL OPTIONS:\n")
 		fmt.Fprintf(os.Stderr, "  -H string               Custom headers (Key: Value, can be used multiple times)\n")
-		fmt.Fprintf(os.Stderr, "  -words string           Comma-separated list of words to include in the scan\n")
+		fmt.Fprintf(os.Stderr, "  -words string           Comma-separated list of words to include in the scan, to be used with -scanDomain\n")
 		fmt.Fprintf(os.Stderr, "  -getDomains             Get all domains for the user\n")
-		fmt.Fprintf(os.Stderr, "  -getEmails string          View all Emails for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getS3Domains string       Get all S3 Domains for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getIps string             Get all IPs for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getDomainUrls string      Get Domain URLs for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getApiPaths string             	Get the APIs for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getFileExtensionUrls string     	Get the urls containing any type of file\n")
-		fmt.Fprintf(os.Stderr, "  -getSocialMediaUrls string       	Get the urls for the social media sites\n")
+		fmt.Fprintf(os.Stderr, "  -getEmails <domains>          View all Emails for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getS3Domains <domains>       Get all S3 Domains for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getIps <domains>              Get all IPs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getDomainUrls <domains>       Get Domain URLs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getApiPaths <domains>              	Get the APIs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getFileExtensionUrls <domains>      	Get the urls containing any type of file\n")
+		fmt.Fprintf(os.Stderr, "  -getSocialMediaUrls <domains>        	Get the urls for the social media sites\n")
 		fmt.Fprintf(os.Stderr, "  -getDomainStatus       			Get the availabilty of domains\n")
 		fmt.Fprintf(os.Stderr, "  -getQueryParamsUrls       		Get the urls containing query params\n")
 		fmt.Fprintf(os.Stderr, "  -getLocalhostUrls       			Get the urls containing localhost in their urls (includes local ip address)\n")
 		fmt.Fprintf(os.Stderr, "  -getUrlsWithPorts       			Get the urls containing port number in their hostname\n")
 		fmt.Fprintf(os.Stderr, "  -getS3DomainsInvalid       		Get the s3 bucket urls which are available (having 404 status code)\n")
+		fmt.Fprintf(os.Stderr, "  -getGqlOps <domain>       		Get the GraphQL operations for a domain.\n")
 
-		fmt.Fprintf(os.Stderr, "  -compare string         Compare two JS responses by JSMON_IDs (format: ID1,ID2)\n")
+		fmt.Fprintf(os.Stderr, "  -compare <jsmonId1, jsmonId2>         Compare two JS responses by JSMON_IDs.\n")
 	}
 
 	// Handle API key
@@ -201,10 +202,10 @@ func main() {
 	case *domainStatus != "":
 		// domains := strings.Split(*domainStatus, ",")
 		// for i, domain := range domains {
-			// 	domains[i] = strings.TrimSpace(domain)
-			// }
-			getAllDomainsStatus(*domainStatus, *size)
-			
+		// 	domains[i] = strings.TrimSpace(domain)
+		// }
+		getAllDomainsStatus(*domainStatus, *size)
+
 	case *socialMediaUrls != "":
 		getAllSocialMediaUrls(*socialMediaUrls, *size)
 	case *queryParamsUrls != "":
