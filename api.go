@@ -23,6 +23,10 @@ type DiffItem struct {
 	Value   string `json:"value"`
 }
 
+type DomainResponse struct {
+	Domains []string `json:"domains"`
+}
+
 type AutomateScanDomainRequest struct {
 	Domain string   `json:"domain"`
 	Words  []string `json:"words"`
@@ -192,13 +196,17 @@ func getDomains() {
 		fmt.Println("Error reading response:", err)
 		return
 	}
-	// Unmarshal directly into a slice of strings
+
 	var domains []string
 	err = json.Unmarshal(body, &domains)
 	if err != nil {
 		fmt.Println("Error parsing JSON:", err)
 		return
 	}
+<<<<<<< HEAD
+
+=======
+>>>>>>> 197a023c39326c956c8e5d327afd1c9746f0689d
 	// Print each domain on a new line
 	for _, domain := range domains {
 		fmt.Println(domain)
