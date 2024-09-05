@@ -68,4 +68,3 @@ func getEmails(domains []string) {
 		}
 	}
 }
-

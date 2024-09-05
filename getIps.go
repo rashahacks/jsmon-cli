@@ -58,7 +58,6 @@ func getAllIps(domains []string) {
 	if ipData, ok := response["ipAddresses"].(map[string]interface{}); ok {
 		// Extract and print IPv4 addresses
 		if ipv4, ok := ipData["ipv4Addresses"].([]interface{}); ok {
-			fmt.Println("IPv4 Addresses:")
 			for _, ip := range ipv4 {
 				if ipStr, ok := ip.(string); ok {
 					fmt.Println(ipStr)
@@ -72,7 +71,6 @@ func getAllIps(domains []string) {
 
 		// Extract and print IPv6 addresses
 		if ipv6, ok := ipData["ipv6Addresses"].([]interface{}); ok {
-			fmt.Println("IPv6 Addresses:")
 			for _, ip := range ipv6 {
 				if ipStr, ok := ip.(string); ok {
 					fmt.Println(ipStr)

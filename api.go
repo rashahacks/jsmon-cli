@@ -23,6 +23,10 @@ type DiffItem struct {
 	Value   string `json:"value"`
 }
 
+type DomainResponse struct {
+	Domains []string `json:"domains"`
+}
+
 type AutomateScanDomainRequest struct {
 	Domain string   `json:"domain"`
 	Words  []string `json:"words"`
@@ -192,7 +196,7 @@ func getDomains() {
 		fmt.Println("Error reading response:", err)
 		return
 	}
-	// Unmarshal directly into a slice of strings
+
 	var domains []string
 	err = json.Unmarshal(body, &domains)
 	if err != nil {
@@ -200,14 +204,10 @@ func getDomains() {
 		return
 	}
 
-	// Pretty print JSON
-	prettyJSON, err := json.MarshalIndent(domains, "", "  ")
-	if err != nil {
-		fmt.Println("Error formatting JSON:", err)
-		return
+	// Print each domain on a new line
+	for _, domain := range domains {
+		fmt.Println(domain)
 	}
-
-	fmt.Println(string(prettyJSON))
 }
 
 func scanFileEndpoint(fileId string) {
@@ -250,6 +250,48 @@ func scanFileEndpoint(fileId string) {
 	}
 
 	fmt.Println(string(prettyJSON))
+}
+
+func urlsmultipleResponse() {
+	endpoint := fmt.Sprintf("%s/urlWithMultipleResponse", apiBaseURL)
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading response:", err)
+		return
+	}
+
+	var response struct {
+		Message string   `json:"message"`
+		Data    []string `json:"data"`
+	}
+
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		fmt.Println("Error parsing JSON:", err)
+		return
+	}
+
+	if len(response.Data) > 0 {
+		for _, url := range response.Data {
+			fmt.Println(url)
+		}
+	}
 }
 
 func uploadFileEndpoint(filePath string, headers []string) {
