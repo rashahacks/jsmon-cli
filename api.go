@@ -203,7 +203,10 @@ func getDomains() {
 		fmt.Println("Error parsing JSON:", err)
 		return
 	}
+<<<<<<< HEAD
 
+=======
+>>>>>>> 197a023c39326c956c8e5d327afd1c9746f0689d
 	// Print each domain on a new line
 	for _, domain := range domains {
 		fmt.Println(domain)

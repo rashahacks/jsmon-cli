@@ -15,11 +15,14 @@ JSMON CLI is a command-line interface for interacting with the jsmon.sh web appl
 
 ## Installation
 
-```git clone https://github.com/rashahacks/jsmon-cli; cd jsmon-cli```
-```go build -o jsmon```
+```
+git clone https://github.com/rashahacks/jsmon-cli
+cd jsmon-cli
+go build -o jsmon
+```
 
 ## Usage
-    ./jsmon [flags]
+`./jsmon [flags]`
 
 ### Flags
 
