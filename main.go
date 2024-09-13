@@ -55,63 +55,80 @@ func main() {
 	domainStatus := flag.String("getDomainStatus", "", "get the availabilty of domains")
 	queryParamsUrls := flag.String("getQueryParamsUrls", "", "get the urls containing query params for the specified domain")
 	localhostUrls := flag.String("getLocalhostUrls", "", "get the urls which has localhost in the hostname for the specified domain")
-	filteredPortUrls := flag.String("getUrlsWithPort", "", "get the urls containing a port number in the hostname for the specified domain")
+	filteredPortUrls := flag.String("getUrlsWithPorts", "", "get the urls containing a port number in the hostname for the specified domain")
 	s3DomainsInvalid := flag.String("getS3DomainsInvalid", "", "get the S3 domains which are available (404 status code) for the specified domain")
 	compareFlag := flag.String("compare", "", "Compare two js responses by jsmon_ids (format: JSMON_ID1,JSMON_ID2)")
-	flag.Parse()
+	reverseSearchResults := flag.String("reverseSearchResults", "", "Specify the input type (e.g., emails, domainname)")
+	//getResultByValue := flag.String("value", "", "Specify the input value")
+
+	searchUrlsByDomainFlag := flag.String("searchUrlsByDomain", "", "Search URLs by domain")
+	getResultByJsmonId := flag.String("getResultByJsmonId", "", "ID of the jsmon to retrieve automation results for")
+	getResultByFileId := flag.String("getResultByFileId", "", "ID of the File to retrieve automation results for")
+	rescanDomainFlag := flag.String("rescanDomain", "", "Rescan all URLs for a specific domain")
+	totalAnalysisDataFlag := flag.Bool("totalAnalysisData", false, "total count of overall analysis data")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s [flags]\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Flags:\n")
+		fmt.Printf("Usage of %s:\n", os.Args[0])
+		fmt.Printf("  %s [flags]\n\n", os.Args[0])
+		fmt.Println("Flags:")
 
 		fmt.Fprintf(os.Stderr, "INPUT:\n")
-		fmt.Fprintf(os.Stderr, "  -scanUrl <jsmonId>        jsmonId to rescan.\n")
-		fmt.Fprintf(os.Stderr, "  -uploadUrl <url>       URL to scan.\n")
-		fmt.Fprintf(os.Stderr, "  -scanFile <fileId>        fileId to rescan.\n")
-		fmt.Fprintf(os.Stderr, "  -uploadFile <local file path>      File to scan.\n")
-		fmt.Fprintf(os.Stderr, "  -scanDomain <hostname>      Domain to scan.\n")
+		fmt.Fprintf(os.Stderr, "  -scanUrl <URL>         URL or scan ID to rescan\n")
+		fmt.Fprintf(os.Stderr, "  -uploadUrl <URL>       URL to upload for scanning\n")
+		fmt.Fprintf(os.Stderr, "  -scanFile <fileId>        File ID to scan\n")
+		fmt.Fprintf(os.Stderr, "  -uploadFile <fileId>      File to upload (local path)\n")
+		fmt.Fprintf(os.Stderr, "  -scanDomain <domainName>      Domain to automate scan\n")
 
 		fmt.Fprintf(os.Stderr, "\nAUTHENTICATION:\n")
-		fmt.Fprintf(os.Stderr, "  -apikey <XXXXXX0-bXX6-49bX-XXXX-c48XXXX09XX9>          API key for authentication\n")
+		fmt.Fprintf(os.Stderr, "  -apikey <XXXXXX-XXXX-XXXX-XXXX-XXXXXX>          API key for authentication\n")
 
 		fmt.Fprintf(os.Stderr, "\nOUTPUT:\n")
-		fmt.Fprintf(os.Stderr, "  -getAutomationData <domain>  Get all Analysis results of domain.\n")
-		fmt.Fprintf(os.Stderr, "  -getScannerData            Get scanner results of domain.\n")
-		fmt.Fprintf(os.Stderr, "  -getUrls                   View all URLs\n")
-		fmt.Fprintf(os.Stderr, "  -urlSize int               Number of URLs to fetch (default 10), to be used with only -getUrls.\n")
-		fmt.Fprintf(os.Stderr, "  -getFiles                  View all files\n")
-		fmt.Fprintf(os.Stderr, "  -usage                 	 View user profile\n")
-		fmt.Fprintf(os.Stderr, "  -changedUrls  			 View Urls with multiple/changed responses.\n")
+		fmt.Fprintf(os.Stderr, "  -getAutomationData <domainName>  	Get all automation results\n")
+		fmt.Fprintf(os.Stderr, "  -getScannerData            		Get scanner results\n")
+		fmt.Fprintf(os.Stderr, "  -getUrls                   		View all URLs\n")
+		fmt.Fprintf(os.Stderr, "  -urlSize int               		Number of URLs to fetch (default 10)\n")
+		fmt.Fprintf(os.Stderr, "  -getFiles                  		View all files\n")
+		fmt.Fprintf(os.Stderr, "  -fileTypes <string>			Pass different file types (e.g. pdf,txt), for multiple types use separator ','\n")
+		fmt.Fprintf(os.Stderr, "  -usage                  		View user profile\n")
+		fmt.Fprintf(os.Stderr, "  -changedUrls  			View user profile\n")
 
 		fmt.Fprintf(os.Stderr, "\nCRON JOB:\n")
-		fmt.Fprintf(os.Stderr, "  -cron string            Set, update, or stop cronjob\n")
-		fmt.Fprintf(os.Stderr, "  -notifications string   Set cronjob notification channel\n")
-		fmt.Fprintf(os.Stderr, "  -time int               Set cronjob time\n")
-		fmt.Fprintf(os.Stderr, "  -vulnerabilitiesType    Set type of cronjob (URLs, Analysis, Scanner)\n")
-		fmt.Fprintf(os.Stderr, "  -domains string         Set domains for cronjob\n")
-		fmt.Fprintf(os.Stderr, "  -domainsNotify string   Set notify (true/false) for each domain\n")
+		fmt.Fprintf(os.Stderr, "  -cron string            		Set, update, or stop cronjob\n")
+		fmt.Fprintf(os.Stderr, "  -notifications string   		Set cronjob notification channel\n")
+		fmt.Fprintf(os.Stderr, "  -time int               		Set cronjob time\n")
+		fmt.Fprintf(os.Stderr, "  -vulnerabilitiesType    		Set type of cronjob (URLs, Analysis, Scanner)\n")
+		fmt.Fprintf(os.Stderr, "  -domains string         		Set domains for cronjob\n")
+		fmt.Fprintf(os.Stderr, "  -domainsNotify string   		Set notify (true/false) for each domain\n")
 
 		fmt.Fprintf(os.Stderr, "\nADDITIONAL OPTIONS:\n")
-		fmt.Fprintf(os.Stderr, "  -H string               Custom headers (Key: Value, can be used multiple times)\n")
-		fmt.Fprintf(os.Stderr, "  -words string           Comma-separated list of words to include in the scan, to be used with -scanDomain\n")
-		fmt.Fprintf(os.Stderr, "  -getDomains             Get all domains for the user\n")
-		fmt.Fprintf(os.Stderr, "  -getEmails <domains>          View all Emails for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getS3Domains <domains>       Get all S3 Domains for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getIps <domains>              Get all IPs for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getDomainUrls <domains>       Get Domain URLs for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getApiPaths <domains>              	Get the APIs for specified domains\n")
-		fmt.Fprintf(os.Stderr, "  -getFileExtensionUrls <domains>      	Get the urls containing any type of file\n")
-		fmt.Fprintf(os.Stderr, "  -getSocialMediaUrls <domains>        	Get the urls for the social media sites\n")
-		fmt.Fprintf(os.Stderr, "  -getDomainStatus       			Get the availabilty of domains\n")
-		fmt.Fprintf(os.Stderr, "  -getQueryParamsUrls       		Get the urls containing query params\n")
-		fmt.Fprintf(os.Stderr, "  -getLocalhostUrls       			Get the urls containing localhost in their urls (includes local ip address)\n")
-		fmt.Fprintf(os.Stderr, "  -getUrlsWithPorts       			Get the urls containing port number in their hostname\n")
-		fmt.Fprintf(os.Stderr, "  -getS3DomainsInvalid       		Get the s3 bucket urls which are available (having 404 status code)\n")
-		fmt.Fprintf(os.Stderr, "  -getGqlOps <domain>       		Get the GraphQL operations for a domain.\n")
+		fmt.Fprintf(os.Stderr, "  -H string               		Custom headers (Key: Value, can be used multiple times)\n")
+		fmt.Fprintf(os.Stderr, "  -words string           		Comma-separated list of words to include in the scan\n")
+		fmt.Fprintf(os.Stderr, "  -getDomains             		Get all domains for the user\n")
+		fmt.Fprintf(os.Stderr, "  -getEmails <domain>          		View all Emails for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getS3Domains <domain>        	Get all S3 Domains for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getIps <domain>              	Get all IPs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getDomainUrls <domain>       	Get Domain URLs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getApiPaths <domain>             	Get the APIs for specified domains\n")
+		fmt.Fprintf(os.Stderr, "  -getFileExtensionUrls <domain>     	Get the urls containing any type of file(-fileTypes) for the specified domain\n")
+		fmt.Fprintf(os.Stderr, "  -getSocialMediaUrls <domain>       	Get the urls for the social media sites for the specified domain\n")
+		fmt.Fprintf(os.Stderr, "  -getDomainStatus <domain>       	Get the availabilty of domains for the specified domain\n")
+		fmt.Fprintf(os.Stderr, "  -getQueryParamsUrls <domain>       	Get the urls containing query params for the specified domain\n")
+		fmt.Fprintf(os.Stderr, "  -getLocalhostUrls <domain>       	Get the urls containing localhost in their urls (includes local ip address) for the specified domain\n")
+		fmt.Fprintf(os.Stderr, "  -getUrlsWithPorts <domain>       	Get the urls containing port number in their hostname for the specified domain\n")
+		fmt.Fprintf(os.Stderr, "  -getS3DomainsInvalid <domain>       	Get the s3 bucket urls which are available (having 404 status code) for the specified domain\n")
+		fmt.Fprintf(os.Stderr, "  -rescanDomain <domain>     		Rescan all URLs for a specific domain\n")
+		fmt.Fprintf(os.Stderr, "  -searchUrlsByDomain       		Search URLs by domain\n")
+		fmt.Fprintf(os.Stderr, "  -compare <jsmonId1, jsmonId2>         Compare two JS responses by JSMON_IDs (format: ID1,ID2)\n")
+		fmt.Fprintf(os.Stderr, "  -getGqlOps <domain>                   Get graph QL operations\n")
+		fmt.Fprintf(os.Stderr, "  -totalAnalysisData          		Gives the total count of overall analysis data\n")
+		fmt.Fprintf(os.Stderr, "  -getResultByJsmonId         		Gives the automation result by jsmon id\n")
+		fmt.Fprintf(os.Stderr, "  -getResultByFileId          		Gives automation result by file  id\n")
 
-		fmt.Fprintf(os.Stderr, "  -compare <jsmonId1, jsmonId2>         Compare two JS responses by JSMON_IDs.\n")
+		fmt.Fprintf(os.Stderr, "\nAUTOMATION RESULTS BY FIELD:  -reverseSearchResults <field>=<value>\n")
+		fmt.Fprintf(os.Stderr, "  -emails, domainname, extracteddomains, s3domains, url, extractedurls, ipv4addresses, ipv6addresses, jwttokens, gqlquery, gqlmutation, guids, apipaths, vulnerabilities, nodemodules, domainstatus, queryparamsurls, socialmediaurls, filterdporturls, gqlfragment, s3domainsinvalid, fileextensionurls, localhosturls\n  Gives the result on the basis of field provided\n")
+		
 	}
+	flag.Parse()
 
 	// Handle API key
 	if *apiKeyFlag != "" {
@@ -144,6 +161,12 @@ func main() {
 		viewFiles()
 	case *uploadUrl != "":
 		uploadUrlEndpoint(*uploadUrl, headers)
+	case *rescanDomainFlag != "":
+		rescanDomain(*rescanDomainFlag)
+	case *totalAnalysisDataFlag:
+		totalAnalysisData()
+	case *searchUrlsByDomainFlag != "":
+		searchUrlsByDomain(*searchUrlsByDomainFlag)
 	case *urlswithmultipleResponse:
 		urlsmultipleResponse()
 	case *viewEmails != "":
@@ -152,6 +175,27 @@ func main() {
 			domains[i] = strings.TrimSpace(domain)
 		}
 		getEmails(domains)
+	case *getResultByJsmonId != "":
+		// Call getAutomationResults with the provided jsmonId
+		getAutomationResultsByJsmonId(strings.TrimSpace(*getResultByJsmonId))
+	case *reverseSearchResults != "":
+        // Split the reverseSearchResults into field and value
+        parts := strings.SplitN(*reverseSearchResults, "=", 2)
+        if len(parts) != 2 {
+            fmt.Println("Invalid format for reverseSearchResults. Use field=value format.")
+            return
+        }
+
+        // Trim spaces and assign to variables
+        field := strings.TrimSpace(parts[0])
+        value := strings.TrimSpace(parts[1])
+
+        // Call the function with the field and value
+        getAutomationResultsByInput(field, value)
+
+	case *getResultByFileId != "":
+		// Call getAutomationResults with the provided jsmonId
+		getAutomationResultsByFileId(strings.TrimSpace(*getResultByFileId))
 	case *s3domains != "":
 		domains := strings.Split(*s3domains, ",")
 		for i, domain := range domains {

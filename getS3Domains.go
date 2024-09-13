@@ -55,10 +55,10 @@ func getS3Domains(domains []string) {
 	}
 
 	// Extract and print the data in the desired format
-	message, ok := response["message"].(string)
-	if ok {
-		fmt.Println(message)
-	}
+	// message, ok := response["message"].(string)
+	// if ok {
+	// 	fmt.Println(message)
+	// }
 
 	s3Domains, ok := response["s3Domains"].([]interface{})
 	if ok && len(s3Domains) > 0 {
