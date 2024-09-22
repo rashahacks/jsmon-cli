@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -40,7 +40,7 @@ func getS3Domains(domains []string) {
 	defer resp.Body.Close()
 
 	// Read response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)  // Updated here
 	if err != nil {
 		fmt.Printf("Failed to read response body: %v\n", err)
 		return
