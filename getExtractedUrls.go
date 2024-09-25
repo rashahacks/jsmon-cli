@@ -84,7 +84,7 @@ func getAllSocialMediaUrls(input string, size int) {
 	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
 	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "socialMediaUrls", input, size, 0, "desc", "createdAt")
 
-	fmt.Println("URL :", url)
+	// fmt.Println("URL :", url)
 	// create request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
