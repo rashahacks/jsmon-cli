@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"encoding/json"
 )
 
 // Function to fetch automation results for a given jsmonId
@@ -42,7 +43,38 @@ func getAutomationResultsByJsmonId(jsmonId string) {
 	// Check if the response is successful (Status Code: 2xx)
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		// Print the response with all fields related to the jsmonId
-		fmt.Println(string(body))
+		var result interface{} 
+		err = json.Unmarshal(body, &result)
+	if err != nil {
+		fmt.Println("Error parsing JSON:", err)
+		return
+	}
+
+			        // Assert that result is of type map[string]interface{}
+        if resMap, ok := result.(map[string]interface{}); ok {
+            // Access the "results" key
+            if results, ok := resMap["results"].([]interface{}); ok {
+                if len(results) > 0 {
+                    // Access the first element
+                    firstElement := results[0]
+
+                    // Print the first element as a pretty JSON string
+                    prettyJSON, err := json.MarshalIndent(firstElement, "", "  ")
+                    if err != nil {
+                        fmt.Println("Error formatting JSON:", err)
+                        return
+                    }
+
+                    fmt.Println(string(prettyJSON))
+                } else {
+                    fmt.Println("Results array is empty.")
+                }
+            } else {
+                fmt.Println("results is not of type []interface{}")
+            }
+        } else {
+            fmt.Println("result is not of type map[string]interface{}")
+        }
 	} else {
 		fmt.Printf("Error: Received status code %d\n", resp.StatusCode)
 		fmt.Println("Response:", string(body)) // Print the response even if it's an error
