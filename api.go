@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -30,6 +31,14 @@ type DomainResponse struct {
 type AutomateScanDomainRequest struct {
 	Domain string   `json:"domain"`
 	Words  []string `json:"words"`
+}
+
+type addCustomWordsRequest struct {
+	Words []string `json:"words"`
+}
+
+type addWordlistRequest struct {
+	Domains []string `json:"domains"`
 }
 
 type AnalysisResult struct {
@@ -286,7 +295,7 @@ func uploadUrlEndpoint(url string, customHeaders []string) {
 		fmt.Println("Error parsing JSON:", err)
 		return
 	}
-	
+
 	if jsmonId, ok := result["jsmonId"].(string); ok {
 		getAutomationResultsByJsmonId(jsmonId)
 	}
@@ -305,7 +314,7 @@ func uploadUrlEndpoint(url string, customHeaders []string) {
 	// }
 }
 
-// Function : 
+// Function :
 func rescanUrlEndpoint(scanId string) {
 	endpoint := fmt.Sprintf("%s/rescanURL/%s", apiBaseURL, scanId)
 
@@ -388,6 +397,45 @@ func getDomains() {
 	}
 }
 
+func createWordList(domains []string) {
+	endpoint := fmt.Sprintf("%s/createWordList", apiBaseURL)
+
+	requestBody := addWordlistRequest{
+		Domains: domains,
+	}
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		fmt.Printf("failed to marshal request body: %v\n", err)
+		return
+	}
+
+	// Create HTTP request
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("failed to send request: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("failed to read response body: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Word list:\n%s\n", string(responseBody))
+}
+
 func scanFileEndpoint(fileId string) {
 	endpoint := fmt.Sprintf("%s/scanFile/%s", apiBaseURL, fileId)
 
@@ -414,7 +462,6 @@ func scanFileEndpoint(fileId string) {
 		return
 	}
 
-	
 	var result interface{}
 	err = json.Unmarshal(body, &result)
 	if err != nil {
@@ -431,6 +478,84 @@ func scanFileEndpoint(fileId string) {
 	fmt.Println(string(prettyJSON))
 }
 
+func addCustomWordUser(words []string) {
+	// Remove empty strings from the words slice
+	cleanedWords := []string{}
+	for _, word := range words {
+		if strings.TrimSpace(word) != "" {
+			cleanedWords = append(cleanedWords, word)
+		}
+	}
+
+	// Prompt user for operation: append or overwrite
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Do you want to append or overwrite the custom words?")
+	fmt.Println("1. Append")
+	fmt.Println("2. Overwrite")
+	fmt.Print("Select option (1 or 2): ")
+
+	operationChoice, _ := reader.ReadString('\n')
+	operationChoice = strings.TrimSpace(operationChoice)
+
+	var operation string
+	if operationChoice == "1" {
+		operation = "append"
+	} else if operationChoice == "2" {
+		operation = "overwrite"
+	} else {
+		fmt.Println("Invalid option selected. Exiting.")
+		return
+	}
+
+	// Append the selected operation to the endpoint as a query parameter
+	endpoint := fmt.Sprintf("%s/addCustomWords?operation=%s", apiBaseURL, operation)
+
+	// Create request body
+	requestBody := addCustomWordsRequest{
+		Words: cleanedWords,
+	}
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		fmt.Printf("failed to marshal request body: %v\n", err)
+		return
+	}
+
+	// Create HTTP request
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("failed to send request: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Decode and pretty-print the response
+	var response map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		fmt.Printf("failed to unmarshal JSON response: %v\n", err)
+		return
+	}
+
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		fmt.Printf("failed to marshal response for pretty print: %v\n", err)
+		return
+	}
+
+	fmt.Printf("%s\n", jsonData)
+}
 func urlsmultipleResponse() {
 	endpoint := fmt.Sprintf("%s/urlWithMultipleResponse", apiBaseURL)
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -562,7 +687,6 @@ func uploadFileEndpoint(filePath string, headers []string) {
 	if err != nil {
 		log.Fatalf("Error reading response: %v", err)
 	}
-
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		log.Fatalf("Upload failed with status code: %d", resp.StatusCode)
