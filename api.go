@@ -243,10 +243,8 @@ func searchUrlsByDomain(domain string) {
 }
 
 func uploadUrlEndpoint(url string, customHeaders []string) {
-
 	endpoint := fmt.Sprintf("%s/uploadUrl", apiBaseURL)
 
-	// Call the function : function is in getResultsByJsmonID
 	headerObjects := make([]map[string]string, 0)
 	for _, header := range customHeaders {
 		parts := strings.SplitN(header, ":", 2)
@@ -289,29 +287,31 @@ func uploadUrlEndpoint(url string, customHeaders []string) {
 		return
 	}
 
-	var result map[string]interface{}
+	var result struct {
+		Message   string `json:"message"`
+		JsmonID   string `json:"jsmonId"`
+		Hash      string `json:"hash"`
+		CreatedAt int64  `json:"createdAt"`
+		URL       string `json:"url"`
+	}
+
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		fmt.Println("Error parsing JSON:", err)
 		return
 	}
 
-	if jsmonId, ok := result["jsmonId"].(string); ok {
-		getAutomationResultsByJsmonId(jsmonId)
+	fmt.Printf("{\n")
+	fmt.Printf("    \"message\": \"%s\",\n", result.Message)
+	fmt.Printf("    \"jsmonId\": \"%s\",\n", result.JsmonID)
+	fmt.Printf("    \"hash\": \"%s\",\n", result.Hash)
+	fmt.Printf("    \"createdAt\": %d,\n", result.CreatedAt)
+	fmt.Printf("    \"url\": \"%s\"\n", result.URL)
+	fmt.Printf("}\n")
+
+	if result.JsmonID != "" {
+		getAutomationResultsByJsmonId(result.JsmonID)
 	}
-	// if hash, ok := result["hash"].(string); ok {
-	// 	fmt.Printf("Hash: %s\n", hash)
-	// }
-	// if createdAt, ok := result["createdAt"].(float64); ok {
-	// 	timestamp := time.Unix(int64(createdAt), 0)
-	// 	fmt.Printf("Created At: %s\n", timestamp.Format(time.RFC3339))
-	// }
-	// if url, ok := result["url"].(string); ok {
-	// 	fmt.Printf("url: %s\n", url)
-	// }
-	// if message, ok := result["message"].(string); ok {
-	// 	fmt.Printf("Message: %s\n", message)
-	// }
 }
 
 // Function :
