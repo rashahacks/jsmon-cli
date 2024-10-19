@@ -2,44 +2,44 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
-func getGqlOps(domains []string) {
+func getGqlOps(ctx context.Context, domains []string) error {
 	endpoint := fmt.Sprintf("%s/getGqlOps", apiBaseURL)
-	requestBody, err := json.Marshal(map[string]interface{}{
+
+	var requestBody bytes.Buffer
+	if err := json.NewEncoder(&requestBody).Encode(map[string]interface{}{
 		"domains": domains,
-	})
-	if err != nil {
-		fmt.Printf("Failed to marshal request body: %v\n", err)
-		return
+	}); err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, &requestBody)
 	if err != nil {
-		fmt.Printf("Failed to create request: %v\n", err)
-		return
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Failed to send request: %v\n", err)
-		return
+		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Failed to read response: %v\n", err)
-		return
+		return fmt.Errorf("failed to read response: %w", err)
 	}
 
 	fmt.Println(string(body))
+	return nil
 }
