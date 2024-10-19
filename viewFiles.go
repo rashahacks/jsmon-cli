@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type FileResponse struct {
@@ -14,48 +15,53 @@ type FileResponse struct {
 }
 
 type FileItem struct {
-	FileID    string  `json:"fileId"`
-	FileSize  float64 `json:"fileSize"`
-	FileName  string  `json:"fileName"`
-	FileKey   string  `json:"fileKey"`
-	Urls      int     `json:"urls"`
-	CreatedAt string  `json:"createdAt"`
+	FileID    string    `json:"fileId"`
+	FileSize  float64   `json:"fileSize"`
+	FileName  string    `json:"fileName"`
+	FileKey   string    `json:"fileKey"`
+	Urls      int       `json:"urls"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 func viewFiles() {
 	endpoint := fmt.Sprintf("%s/viewFiles", apiBaseURL)
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", endpoint, nil)
+	
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
-		fmt.Println("Error creating request:", err)
+		fmt.Printf("Error creating request: %v\n", err)
 		return
 	}
 
 	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Failed to send request: %v", err)
+		fmt.Printf("Failed to send request: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Unexpected status code: %d\n", resp.StatusCode)
+		return
+	}
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Failed to read response body: %v", err)
+		fmt.Printf("Failed to read response body: %v\n", err)
 		return
 	}
 
 	var response FileResponse
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		fmt.Printf("Failed to unmarshal JSON response: %v", err)
+	if err := json.Unmarshal(body, &response); err != nil {
+		fmt.Printf("Failed to unmarshal JSON response: %v\n", err)
 		return
 	}
 
 	fmt.Println(response.Message)
 	for _, fileItem := range response.Data {
 		fmt.Printf("File Name: %s\nFile Size: %.3f MB\nFile ID: %s\nFile Key: %s\nNumber of URLs: %d\nCreated At: %s\n\n",
-			fileItem.FileName, fileItem.FileSize, fileItem.FileID, fileItem.FileKey, fileItem.Urls, fileItem.CreatedAt)
+			fileItem.FileName, fileItem.FileSize, fileItem.FileID, fileItem.FileKey, fileItem.Urls, fileItem.CreatedAt.Format(time.RFC3339))
 	}
 }

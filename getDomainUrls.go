@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
 
-// Function to get domain URLs
+// getDomainUrls fetches and prints domain URLs for the given domains
 func getDomainUrls(domains []string) {
 	endpoint := fmt.Sprintf("%s/getDomainsUrls", apiBaseURL)
+	
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"domains": domains,
 	})
@@ -20,8 +21,7 @@ func getDomainUrls(domains []string) {
 		return
 	}
 
-	// Create request
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewBuffer(requestBody))
 	if err != nil {
 		fmt.Printf("Failed to create request: %v\n", err)
 		return
@@ -29,7 +29,6 @@ func getDomainUrls(domains []string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
-	// Send request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -38,42 +37,31 @@ func getDomainUrls(domains []string) {
 	}
 	defer resp.Body.Close()
 
-	// Read response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Failed to read response body: %v\n", err)
 		return
 	}
 
-	// Parse response
-	var response map[string]interface{}
-	err = json.Unmarshal(body, &response)
-	if err != nil {
+	var response struct {
+		Data struct {
+			ExtractedDomains []string `json:"extractedDomains"`
+			ExtractedUrls    []string `json:"extractedUrls"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
 		fmt.Printf("Failed to unmarshal JSON response: %v\n", err)
 		return
 	}
 
-	// Extract data
-	if data, ok := response["data"].(map[string]interface{}); ok {
+	// Print extracted domains
+	for _, domain := range response.Data.ExtractedDomains {
+		fmt.Println(domain)
+	}
 
-		// Print extracted domains
-		if extractedDomains, ok := data["extractedDomains"].([]interface{}); ok {
-			for _, domain := range extractedDomains {
-				if domainStr, ok := domain.(string); ok {
-					fmt.Println(domainStr)
-				}
-			}
-		}
-
-		// Print extracted URLs
-		if extractedUrls, ok := data["extractedUrls"].([]interface{}); ok {
-			for _, url := range extractedUrls {
-				if urlStr, ok := url.(string); ok {
-					fmt.Println(urlStr)
-				}
-			}
-		}
-	} else {
-		fmt.Println("Error: 'data' field not found or not in expected format")
+	// Print extracted URLs
+	for _, url := range response.Data.ExtractedUrls {
+		fmt.Println(url)
 	}
 }

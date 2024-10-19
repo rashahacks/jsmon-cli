@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
 
-// Function to get API paths based on domains
+// getS3Domains retrieves API paths based on domains
 func getS3Domains(domains []string) {
-	// Prepare request data
 	endpoint := fmt.Sprintf("%s/getS3Domains", apiBaseURL)
+	
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"domains": domains,
 	})
@@ -21,51 +21,59 @@ func getS3Domains(domains []string) {
 		return
 	}
 
-	// Create request
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
+	req, err := createRequest(endpoint, requestBody)
 	if err != nil {
 		fmt.Printf("Failed to create request: %v\n", err)
 		return
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
-	// Send request
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := sendRequest(req)
 	if err != nil {
 		fmt.Printf("Failed to send request: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	// Read response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Failed to read response body: %v\n", err)
 		return
 	}
 
-	// Parse response
 	var response map[string]interface{}
-	err = json.Unmarshal(body, &response)
-	if err != nil {
+	if err := json.Unmarshal(body, &response); err != nil {
 		fmt.Printf("Failed to unmarshal JSON response: %v\n", err)
 		return
 	}
 
-	// Extract and print the data in the desired format
-	// message, ok := response["message"].(string)
-	// if ok {
-	// 	fmt.Println(message)
-	// }
+	printS3Domains(response)
+}
 
+func createRequest(endpoint string, requestBody []byte) (*http.Request, error) {
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewBuffer(requestBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
+	return req, nil
+}
+
+func sendRequest(req *http.Request) (*http.Response, error) {
+	client := &http.Client{}
+	return client.Do(req)
+}
+
+func printS3Domains(response map[string]interface{}) {
 	s3Domains, ok := response["s3Domains"].([]interface{})
-	if ok && len(s3Domains) > 0 {
-		for _, domain := range s3Domains {
-			if domainStr, ok := domain.(string); ok {
-				fmt.Println(domainStr)
-			}
+	if !ok || len(s3Domains) == 0 {
+		fmt.Println("No S3 domains found in the response")
+		return
+	}
+
+	for _, domain := range s3Domains {
+		if domainStr, ok := domain.(string); ok {
+			fmt.Println(domainStr)
 		}
 	}
 }

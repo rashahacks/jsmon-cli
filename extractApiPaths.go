@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -40,14 +40,16 @@ func getApiPaths(domains []string) {
 	defer resp.Body.Close()
 
 	// Read response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Failed to read response body: %v\n", err)
 		return
 	}
 
 	// Parse response
-	var response map[string]interface{}
+	var response struct {
+		ApiPaths []string `json:"apiPaths"`
+	}
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		fmt.Printf("Failed to unmarshal JSON response: %v\n", err)
@@ -55,13 +57,7 @@ func getApiPaths(domains []string) {
 	}
 
 	// Access and print API paths
-	if apiPaths, ok := response["apiPaths"].([]interface{}); ok {
-		for _, path := range apiPaths {
-			if pathStr, ok := path.(string); ok {
-				fmt.Println(pathStr)
-			} else {
-				fmt.Println("Error: Invalid type in 'apiPaths'")
-			}
-		}
+	for _, path := range response.ApiPaths {
+		fmt.Println(path)
 	}
 }
