@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type URLResponse struct {
@@ -18,32 +20,36 @@ type URLItem struct {
 }
 
 func viewUrls(size int) {
-	endpoint := fmt.Sprintf("%s/searchAllUrls?size=%d&start=0", apiBaseURL, size) // Use the size parameter
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", endpoint, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	endpoint := fmt.Sprintf("%s/searchAllUrls?size=%d&start=0", apiBaseURL, size)
+	
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		fmt.Println("Error creating request:", err)
+		fmt.Printf("Error creating request: %v\n", err)
 		return
 	}
 
 	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("failed to send request: %v", err)
+		fmt.Printf("Failed to send request: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("failed to read response body: %v", err)
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Unexpected status code: %d\n", resp.StatusCode)
 		return
 	}
+
 	var response URLResponse
-	err = json.Unmarshal(body, &response)
+	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
-		fmt.Printf("failed to unmarshal JSON response: %v", err)
+		fmt.Printf("Failed to decode JSON response: %v\n", err)
 		return
 	}
 

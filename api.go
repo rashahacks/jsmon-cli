@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,8 +16,28 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	// "time"
+	"time"
+
+	"golang.org/x/time/rate"
 )
+
+const (
+	defaultTimeout = 30 * time.Second
+	maxRetries     = 3
+	retryDelay     = 1 * time.Second
+)
+
+var (
+	httpClient *http.Client
+	limiter    *rate.Limiter
+)
+
+func init() {
+	httpClient = &http.Client{
+		Timeout: defaultTimeout,
+	}
+	limiter = rate.NewLimiter(rate.Every(time.Second), 10) // 10 requests per second
+}
 
 type DiffItem struct {
 	Added   bool   `json:"added"`
@@ -103,44 +124,73 @@ type RescanDomainResponse struct {
 	TotalUrls int    `json:"totalUrls"`
 }
 
+func makeRequest(ctx context.Context, method, url string, body io.Reader, headers map[string]string) (*http.Response, error) {
+	if err := limiter.Wait(ctx); err != nil {
+		return nil, fmt.Errorf("rate limit exceeded: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
+
+	var resp *http.Response
+	var attempt int
+	for attempt = 0; attempt < maxRetries; attempt++ {
+		resp, err = httpClient.Do(req)
+		if err == nil {
+			break
+		}
+		time.Sleep(retryDelay)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("error sending request after %d attempts: %w", maxRetries, err)
+	}
+
+	return resp, nil
+}
+
 func rescanDomain(domain string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/rescanDomain", apiBaseURL)
 
 	requestBody, err := json.Marshal(map[string]string{
 		"domain": domain,
 	})
 	if err != nil {
-		fmt.Println("Error creating request body:", err)
+		log.Printf("Error creating request body: %v", err)
 		return
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(requestBody), headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
 	var result RescanDomainResponse
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
@@ -149,35 +199,31 @@ func rescanDomain(domain string) {
 }
 
 func totalAnalysisData() {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/totalCountAnalysisData", apiBaseURL)
 
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodGet, endpoint, nil, headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
 	var results AnalysisData
-	err = json.Unmarshal(body, &results)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &results); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
@@ -200,36 +246,33 @@ func totalAnalysisData() {
 	fmt.Printf("Total IP Addresses: %d\n", results.TotalIpAddresses)
 	fmt.Printf("Total GraphQL Queries: %d\n", results.TotalGql)
 }
+
 func searchUrlsByDomain(domain string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/searchUrlbyDomain?domain=%s", apiBaseURL, url.QueryEscape(domain))
 
-	req, err := http.NewRequest("POST", endpoint, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, nil, headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
 	var result SearchUrlsByDomainResponse
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
@@ -239,10 +282,12 @@ func searchUrlsByDomain(domain string) {
 	for _, entry := range result.URLs {
 		fmt.Printf("- %s\n", entry.URL)
 	}
-
 }
 
 func uploadUrlEndpoint(url string, customHeaders []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/uploadUrl", apiBaseURL)
 
 	headerObjects := make([]map[string]string, 0)
@@ -260,30 +305,24 @@ func uploadUrlEndpoint(url string, customHeaders []string) {
 		"headers": headerObjects,
 	})
 	if err != nil {
-		fmt.Println("Error creating request body:", err)
+		log.Printf("Error creating request body: %v", err)
 		return
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(requestBody), headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
@@ -295,9 +334,8 @@ func uploadUrlEndpoint(url string, customHeaders []string) {
 		URL       string `json:"url"`
 	}
 
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
@@ -314,44 +352,38 @@ func uploadUrlEndpoint(url string, customHeaders []string) {
 	}
 }
 
-// Function :
 func rescanUrlEndpoint(scanId string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/rescanURL/%s", apiBaseURL, scanId)
 
-	req, err := http.NewRequest("POST", endpoint, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, nil, headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
 	var result interface{}
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
-	// Pretty print JSON
 	prettyJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		fmt.Println("Error formatting JSON:", err)
+		log.Printf("Error formatting JSON: %v", err)
 		return
 	}
 
@@ -359,45 +391,43 @@ func rescanUrlEndpoint(scanId string) {
 }
 
 func getDomains() {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/getDomains", apiBaseURL)
 
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodGet, endpoint, nil, headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
 	var domains []string
-	err = json.Unmarshal(body, &domains)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &domains); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
-	// Print each domain on a new line
 	for _, domain := range domains {
 		fmt.Println(domain)
 	}
 }
 
 func createWordList(domains []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/createWordList", apiBaseURL)
 
 	requestBody := addWordlistRequest{
@@ -405,31 +435,24 @@ func createWordList(domains []string) {
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		fmt.Printf("failed to marshal request body: %v\n", err)
+		log.Printf("failed to marshal request body: %v", err)
 		return
 	}
 
-	// Create HTTP request
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(body), headers)
 	if err != nil {
-		fmt.Printf("failed to send request: %v\n", err)
+		log.Printf("failed to send request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("failed to read response body: %v\n", err)
+		log.Printf("failed to read response body: %v", err)
 		return
 	}
 
@@ -437,41 +460,37 @@ func createWordList(domains []string) {
 }
 
 func scanFileEndpoint(fileId string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/scanFile/%s", apiBaseURL, fileId)
 
-	req, err := http.NewRequest("POST", endpoint, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, nil, headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
 	var result interface{}
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
 	prettyJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		fmt.Println("Error formatting JSON:", err)
+		log.Printf("Error formatting JSON: %v", err)
 		return
 	}
 
@@ -479,7 +498,6 @@ func scanFileEndpoint(fileId string) {
 }
 
 func addCustomWordUser(words []string) {
-	// Remove empty strings from the words slice
 	cleanedWords := []string{}
 	for _, word := range words {
 		if strings.TrimSpace(word) != "" {
@@ -487,7 +505,6 @@ func addCustomWordUser(words []string) {
 		}
 	}
 
-	// Prompt user for operation: append or overwrite
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Do you want to append or overwrite the custom words?")
 	fmt.Println("1. Append")
@@ -507,76 +524,66 @@ func addCustomWordUser(words []string) {
 		return
 	}
 
-	// Append the selected operation to the endpoint as a query parameter
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/addCustomWords?operation=%s", apiBaseURL, operation)
 
-	// Create request body
 	requestBody := addCustomWordsRequest{
 		Words: cleanedWords,
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		fmt.Printf("failed to marshal request body: %v\n", err)
+		log.Printf("failed to marshal request body: %v", err)
 		return
 	}
 
-	// Create HTTP request
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	// Send the request
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(body), headers)
 	if err != nil {
-		fmt.Printf("failed to send request: %v\n", err)
+		log.Printf("failed to send request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	// Decode and pretty-print the response
 	var response map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&response)
-	if err != nil {
-		fmt.Printf("failed to unmarshal JSON response: %v\n", err)
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		log.Printf("failed to unmarshal JSON response: %v", err)
 		return
 	}
 
 	jsonData, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
-		fmt.Printf("failed to marshal response for pretty print: %v\n", err)
+		log.Printf("failed to marshal response for pretty print: %v", err)
 		return
 	}
 
 	fmt.Printf("%s\n", jsonData)
 }
-func urlsmultipleResponse() {
-	endpoint := fmt.Sprintf("%s/urlWithMultipleResponse", apiBaseURL)
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+func urlsmultipleResponse() {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	endpoint := fmt.Sprintf("%s/urlWithMultipleResponse", apiBaseURL)
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	resp, err := makeRequest(ctx, http.MethodGet, endpoint, nil, headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
@@ -585,9 +592,8 @@ func urlsmultipleResponse() {
 		Data    []string `json:"data"`
 	}
 
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &response); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
@@ -599,11 +605,12 @@ func urlsmultipleResponse() {
 }
 
 func uploadFileEndpoint(filePath string, headers []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/uploadFile", apiBaseURL)
 
 	headerMaps := []map[string]string{}
-
-	// Parse headers into the correct format
 	for _, header := range headers {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) == 2 {
@@ -615,31 +622,29 @@ func uploadFileEndpoint(filePath string, headers []string) {
 
 	headersJSON, err := json.Marshal(headerMaps)
 	if err != nil {
-		log.Fatalf("Error marshaling headers to JSON: %v", err)
+		log.Printf("Error marshaling headers to JSON: %v", err)
+		return
 	}
 
-	// Create query parameters
 	queryParams := url.Values{}
 	queryParams.Add("headers", string(headersJSON))
-
-	// Append query parameters to the endpoint URL
 	endpoint = fmt.Sprintf("%s?%s", endpoint, queryParams.Encode())
-
-	// Log the final endpoint URL for debugging
-	// log.Printf("Final endpoint URL: %s", endpoint)
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatalf("Error opening file: %v", err)
+		log.Printf("Error opening file: %v", err)
+		return
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		log.Fatalf("Error getting file info: %v", err)
+		log.Printf("Error getting file info: %v", err)
+		return
 	}
 	if fileInfo.Size() > 10*1024*1024 {
-		log.Fatalf("File size exceeds limit")
+		log.Printf("File size exceeds limit")
+		return
 	}
 
 	body := &bytes.Buffer{}
@@ -650,147 +655,113 @@ func uploadFileEndpoint(filePath string, headers []string) {
 	h.Set("Content-Type", "text/plain")
 	part, err := writer.CreatePart(h)
 	if err != nil {
-		log.Fatalf("Error creating form part: %v", err)
+		log.Printf("Error creating form part: %v", err)
+		return
 	}
 
-	_, err = io.Copy(part, file)
-	if err != nil {
-		log.Fatalf("Error copying file content: %v", err)
+	if _, err := io.Copy(part, file); err != nil {
+		log.Printf("Error copying file content: %v", err)
+		return
 	}
 
-	err = writer.Close()
-	if err != nil {
-		log.Fatalf("Error closing multipart writer: %v", err)
+	if err := writer.Close(); err != nil {
+		log.Printf("Error closing multipart writer: %v", err)
+		return
 	}
 
-	req, err := http.NewRequest("POST", endpoint, body)
-	if err != nil {
-		log.Fatalf("Error creating request: %v", err)
+	headers = map[string]string{
+		"Content-Type":     writer.FormDataContentType(),
+		"Accept-Encoding":  "gzip, deflate, br",
 	}
 
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
-
-	// log.Printf("File being uploaded: %s", filepath.Base(filePath))
-	// log.Printf("Request body length: %d bytes", body.Len())
-	// log.Printf("Request body content (first 200 bytes): %s", body.String()[:min(200, body.Len())])
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, body, headers)
 	if err != nil {
-		log.Fatalf("Error sending request: %v", err)
+		log.Printf("Error making request: %v", err)
+		return
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatalf("Error reading response: %v", err)
+		log.Printf("Error reading response: %v", err)
+		return
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		log.Fatalf("Upload failed with status code: %d", resp.StatusCode)
+		log.Printf("Upload failed with status code: %d", resp.StatusCode)
+		return
 	}
 
 	var result map[string]interface{}
 	if err := json.Unmarshal(responseBody, &result); err != nil {
-		log.Fatalf("Failed to parse JSON response: %v", err)
+		log.Printf("Failed to parse JSON response: %v", err)
+		return
 	}
 
 	fileID, ok := result["fileId"].(string)
 	if !ok {
-		fmt.Println("Error: fileId is not a string")
+		log.Printf("Error: fileId is not a string")
 		return
 	}
 	getAutomationResultsByFileId(fileID)
-	// Print the response in a more user-friendly format
-	// fmt.Println("File ID: \n",result["fileId"])
-	// if jsmonId, ok := result["jsmonId"].(string); ok {
-	// 	fmt.Printf("JSMON ID: %s\n", jsmonId)
-	// }
-	// if hash, ok := result["hash"].(string); ok {
-	// 	fmt.Printf("Hash: %s\n", hash)
-	// }
-	// if createdAt, ok := result["createdAt"].(float64); ok {
-	// 	timestamp := time.Unix(int64(createdAt), 0)
-	// 	fmt.Printf("Created At: %s\n", timestamp.Format(time.RFC3339))
-	// }
-	// if message, ok := result["message"].(string); ok {
-	// 	fmt.Printf("Message: %s\n", message)
-	// }
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func getAllAutomationResults(input string, size int) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
 
 	url := fmt.Sprintf("%s?showonly=all&inputType=domain&input=%s&size=%d", endpoint, input, size)
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
-	}
+	headers := map[string]string{}
 
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodGet, url, nil, headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
 	var result interface{}
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
 	prettyJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		fmt.Println("Error formatting JSON:", err)
+		log.Printf("Error formatting JSON: %v", err)
 		return
 	}
 
 	fmt.Println(string(prettyJSON))
 }
+
 func getScannerResults() {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/getScannerResults", apiBaseURL)
 
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
-	}
+	headers := map[string]string{}
 
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodGet, endpoint, nil, headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
@@ -802,9 +773,8 @@ func getScannerResults() {
 		} `json:"data"`
 	}
 
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return
 	}
 
@@ -818,6 +788,9 @@ func getScannerResults() {
 
 func automateScanDomain(domain string, words []string) {
 	fmt.Printf("automateScanDomain called with domain: %s and words: %v\n", domain, words)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/automateScanDomain", apiBaseURL)
 
 	requestBody := AutomateScanDomainRequest{
@@ -826,23 +799,17 @@ func automateScanDomain(domain string, words []string) {
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		fmt.Printf("failed to marshal request body: %v\n", err)
+		log.Printf("failed to marshal request body: %v", err)
 		return
 	}
 
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(body), headers)
 	if err != nil {
-		fmt.Printf("failed to send request: %v\n", err)
+		log.Printf("failed to send request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -855,7 +822,7 @@ func automateScanDomain(domain string, words []string) {
 			if err == io.EOF {
 				break
 			}
-			fmt.Printf("failed to unmarshal JSON response: %v\n", err)
+			log.Printf("failed to unmarshal JSON response: %v", err)
 			return
 		}
 
@@ -863,39 +830,6 @@ func automateScanDomain(domain string, words []string) {
 	}
 }
 
-// func printFormattedResponse(response map[string]interface{}) {
-// 	fmt.Println("Message:", response["message"])
-// 	fmt.Println("File ID:", response["fileId"])
-// 	fmt.Println("Trimmed Domain:", response["trimmedDomain"])
-
-// 	scanResponse, ok := response["scanResponse"].(map[string]interface{})
-// 	if ok {
-// 		fmt.Println("\nScan Response:")
-// 		fmt.Println("  Message:", scanResponse["message"])
-
-// 		analysisResult, ok := scanResponse["analysis_result"].(map[string]interface{})
-// 		if ok {
-// 			fmt.Println("\n  Analysis Result:")
-// 			fmt.Println("    Message:", analysisResult["message"])
-// 			fmt.Println("    Total Chunks:", analysisResult["totalChunks"])
-// 		}
-
-//			moduleScanResult, ok := scanResponse["modulescan_result"].(map[string]interface{})
-//			if ok {
-//				fmt.Println("\n  Module Scan Result:")
-//				fmt.Println("    Message:", moduleScanResult["message"])
-//				modules, ok := moduleScanResult["data"].([]interface{})
-//				if ok {
-//					for _, module := range modules {
-//						m := module.(map[string]interface{})
-//						fmt.Println("    Module Name:", m["moduleName"])
-//						fmt.Println("    URL:", m["url"])
-//						fmt.Println()
-//					}
-//				}
-//			}
-//		}
-//	}
 func printFormattedResponse(response map[string]interface{}) {
 	fmt.Println("Message:", response["message"])
 	fmt.Println("File ID:", response["fileId"])
@@ -922,35 +856,33 @@ func printFormattedResponse(response map[string]interface{}) {
 		}
 	}
 }
+
 func callViewProfile() {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/viewProfile", apiBaseURL)
 
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		os.Exit(1)
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodGet, endpoint, nil, headers)
 	if err != nil {
-		fmt.Println("Error making request:", err)
+		log.Printf("Error making request: %v", err)
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response body:", err)
+		log.Printf("Error reading response body: %v", err)
 		os.Exit(1)
 	}
 
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
-		fmt.Println("Error unmarshalling response:", err)
+		log.Printf("Error unmarshalling response: %v", err)
 		os.Exit(1)
 	}
 
@@ -976,6 +908,9 @@ func callViewProfile() {
 }
 
 func compareEndpoint(id1, id2 string) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	endpoint := fmt.Sprintf("%s/compare", apiBaseURL)
 
 	requestBody, err := json.Marshal(map[string]string{
@@ -983,29 +918,23 @@ func compareEndpoint(id1, id2 string) {
 		"id2": id2,
 	})
 	if err != nil {
-		fmt.Println("Error creating request body:", err)
+		log.Printf("Error creating request body: %v", err)
 		return
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+	headers := map[string]string{
+		"Content-Type": "application/json",
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeRequest(ctx, http.MethodPost, endpoint, bytes.NewBuffer(requestBody), headers)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Printf("Error making request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Unexpected status code: %d\n", resp.StatusCode)
+		log.Printf("Unexpected status code: %d", resp.StatusCode)
 		body, _ := ioutil.ReadAll(resp.Body)
 		fmt.Printf("Response: %s\n", string(body))
 		return
@@ -1013,14 +942,13 @@ func compareEndpoint(id1, id2 string) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Printf("Error reading response: %v", err)
 		return
 	}
 
 	var diffItems []DiffItem
-	err = json.Unmarshal(body, &diffItems)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+	if err := json.Unmarshal(body, &diffItems); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		fmt.Printf("Response: %s\n", string(body))
 		return
 	}
@@ -1032,12 +960,12 @@ func compareEndpoint(id1, id2 string) {
 	for _, item := range diffItems {
 		if item.Added {
 			addedCount++
-			if addedCount <= 20 { // Print the first 20 additions
+			if addedCount <= 20 {
 				fmt.Printf("+ %s\n", item.Value)
 			}
 		} else if item.Removed {
 			removedCount++
-			if removedCount <= 20 { // Print the first 20 removals
+			if removedCount <= 20 {
 				fmt.Printf("- %s\n", item.Value)
 			}
 		}

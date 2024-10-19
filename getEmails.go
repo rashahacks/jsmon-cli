@@ -4,67 +4,51 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
 
-// Function to get emails
-func getEmails(domains []string) {
-	// Prepare request data
+// getEmails retrieves emails for the given domains
+func getEmails(domains []string) error {
 	endpoint := fmt.Sprintf("%s/getEmails", apiBaseURL)
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"domains": domains,
 	})
 	if err != nil {
-		fmt.Println("Error creating request body:", err)
-		return
+		return fmt.Errorf("error creating request body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewBuffer(requestBody))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+		return fmt.Errorf("error creating request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
-	// Send the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return
+		return fmt.Errorf("error sending request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Read the response
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
-		return
+		return fmt.Errorf("error reading response: %w", err)
 	}
 
-	// Parse and print JSON response
-	var result map[string]interface{}
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
-		return
+	var result struct {
+		Emails []string `json:"emails"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("error parsing JSON: %w", err)
 	}
 
-	// Pretty print JSON
-	emails, ok := result["emails"].([]interface{})
-	if !ok {
-		fmt.Println("Error: 'email' field not found or not in expected format")
-		return
+	for _, email := range result.Emails {
+		fmt.Println(email)
 	}
-	for _, path := range emails {
-		if pathStr, ok := path.(string); ok {
-			fmt.Println(pathStr)
-		} else {
-			fmt.Println("Error: Invalid type in 'emails'")
-		}
-	}
+
+	return nil
 }

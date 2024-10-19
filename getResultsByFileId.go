@@ -1,82 +1,75 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
-	"encoding/json"
+	"time"
 )
 
-// Function to fetch automation results for a given jsmonId
-func getAutomationResultsByFileId(fileId string) {
-	// Define the API base URL and endpoint, appending the jsmonId as a query parameter
-	endpoint := fmt.Sprintf("%s/getAllAutomationResults?inputType=fileid&input=%s&showonly=all", apiBaseURL, fileId)
+const (
+	timeout         = 30 * time.Second
+	endpointFormat  = "%s/getAllAutomationResults?inputType=fileid&input=%s&showonly=all"
+	contentTypeJSON = "application/json"
+)
 
-	// Create a new HTTP request with the GET method
-	req, err := http.NewRequest("GET", endpoint, nil) // No need for request body in GET
-	if err != nil {
-		fmt.Printf("Failed to create request: %v\n", err)
-		return
+type APIResponse struct {
+	Results []map[string]interface{} `json:"results"`
+}
+
+// getAutomationResultsByFileId fetches automation results for a given fileId
+func getAutomationResultsByFileId(fileId string) error {
+	if fileId == "" {
+		return fmt.Errorf("fileId cannot be empty")
 	}
 
-	// Set necessary headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey())) // Trim any whitespace from the API key
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	// Create an HTTP client and make the request
+	endpoint := fmt.Sprintf(endpointFormat, apiBaseURL, fileId)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Failed to send request: %v\n", err)
-		return
+		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Failed to read response: %v\n", err)
-		return
+		return fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Check if the response is successful (Status Code: 2xx)
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		// Print the response with all fields related to the jsmonId
-		var result interface{} 
-		err = json.Unmarshal(body, &result)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("received non-success status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	var apiResp APIResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return fmt.Errorf("error parsing JSON: %w", err)
+	}
+
+	if len(apiResp.Results) == 0 {
+		fmt.Println("Results array is empty.")
+		return nil
+	}
+
+	prettyJSON, err := json.MarshalIndent(apiResp.Results[0], "", "  ")
 	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
-		return
+		return fmt.Errorf("error formatting JSON: %w", err)
 	}
 
-		        // Assert that result is of type map[string]interface{}
-        if resMap, ok := result.(map[string]interface{}); ok {
-            // Access the "results" key
-            if results, ok := resMap["results"].([]interface{}); ok {
-                if len(results) > 0 {
-                    // Access the first element
-                    firstElement := results[0]
-
-                    // Print the first element as a pretty JSON string
-                    prettyJSON, err := json.MarshalIndent(firstElement, "", "  ")
-                    if err != nil {
-                        fmt.Println("Error formatting JSON:", err)
-                        return
-                    }
-
-                    fmt.Println(string(prettyJSON))
-                } else {
-                    fmt.Println("Results array is empty.")
-                }
-            } else {
-                fmt.Println("results is not of type []interface{}")
-            }
-        } else {
-            fmt.Println("result is not of type map[string]interface{}")
-        }
-	} else {
-		fmt.Printf("Error: Received status code %d\n", resp.StatusCode)
-		fmt.Println("Response:", string(body)) // Print the response even if it's an error
-	}
+	fmt.Println(string(prettyJSON))
+	return nil
 }

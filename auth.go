@@ -1,9 +1,10 @@
 package main
 
 import (
-	"io/ioutil"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var apiKey string
@@ -11,21 +12,21 @@ var apiKey string
 func loadAPIKey() error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
 	credPath := filepath.Join(homeDir, ".jsmon", "credentials")
-	data, err := ioutil.ReadFile(credPath)
+	data, err := os.ReadFile(credPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read credentials file: %w", err)
 	}
 
-	apiKey = string(data)
+	apiKey = strings.TrimSpace(string(data))
 	return nil
 }
 
 func setAPIKey(key string) {
-	apiKey = key
+	apiKey = strings.TrimSpace(key)
 }
 
 func getAPIKey() string {
