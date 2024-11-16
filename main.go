@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -275,9 +276,15 @@ func main() {
 		words := []string{}
 		if *wordsFlag != "" {
 			words = strings.Split(*wordsFlag, ",")
+		} else {
+			rootWord := extractRootWord(*scanDomainFlag)
+			if rootWord != "" {
+				words = []string{rootWord}
+			}
 		}
 		fmt.Printf("Domain: %s, Words: %v\n", *scanDomainFlag, words)
 		automateScanDomain(*scanDomainFlag, words)
+
 	case *usageFlag:
 		callViewProfile()
 	case *createWordListFlag != "":
@@ -291,6 +298,35 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
+}
+
+func extractRootWord(domain string) string {
+	// Remove common TLDs and subdomains
+	domain = strings.TrimSpace(domain)
+	domain = strings.ToLower(domain)
+
+	// Remove protocol if present
+	if strings.Contains(domain, "://") {
+		parts := strings.Split(domain, "://")
+		if len(parts) > 1 {
+			domain = parts[1]
+		}
+	}
+
+	// Split by dots and get the main domain part
+	parts := strings.Split(domain, ".")
+	if len(parts) < 2 {
+		return domain
+	}
+
+	// Get the part before the TLD
+	mainPart := parts[len(parts)-2]
+
+	// Remove any non-alphanumeric characters
+	reg := regexp.MustCompile("[^a-zA-Z0-9]+")
+	mainPart = reg.ReplaceAllString(mainPart, "")
+
+	return mainPart
 }
 
 // type Args struct {
