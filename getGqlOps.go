@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-func getGqlOps(domains []string) {
-	endpoint := fmt.Sprintf("%s/getGqlOps", apiBaseURL)
+func getGqlOps(domains []string, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getGqlOps?wkspId=%s", apiBaseURL, wkspId)
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"domains": domains,
 	})

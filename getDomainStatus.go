@@ -1,17 +1,15 @@
-
 package main
 
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
-	"io"
 )
 
-
-func getAllDomainsStatus(input string, size int){
-	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
+func getAllDomainsStatus(input string, size int, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getAllAutomationResults?wkspId=%s", apiBaseURL, wkspId)
 	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "domainStatus", input, size, 0, "desc", "createdAt")
 
 	// create request
@@ -50,41 +48,41 @@ func getAllDomainsStatus(input string, size int){
 	// fmt.Println(response, "HELLP")
 	// access urls map
 	results, err := extractResults(response)
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	// fmt.Println("SOME OUTPUT FROM RESULTS", results)
 
 	domainStatus := processExtractedDomains(results)
 	// fmt.Println("domain Status", domainStatus)
-    for _, domain := range domainStatus {
-        fmt.Println(domain)
-    }
+	for _, domain := range domainStatus {
+		fmt.Println(domain)
+	}
 
 }
 func extractResults(response map[string]interface{}) ([]interface{}, error) {
-    if results, ok := response["results"].([]interface{}); ok {
-        return results, nil
-    }
-    return nil, fmt.Errorf("no data found in response")
+	if results, ok := response["results"].([]interface{}); ok {
+		return results, nil
+	}
+	return nil, fmt.Errorf("no data found in response")
 }
 
 func processExtractedDomains(results []interface{}) []string {
 	output := make([]string, 0)
 
-    for _, result := range results {
-        if resultMap, ok := result.(map[string]interface{}); ok {
-            // Access 'extractedDomainsStatus'
+	for _, result := range results {
+		if resultMap, ok := result.(map[string]interface{}); ok {
+			// Access 'extractedDomainsStatus'
 
 			if extractedDomainsStatus, ok := resultMap["extractedDomainsStatus"].([]interface{}); ok {
 				domainStatusResult := processDomainStatus(extractedDomainsStatus)
-				output = append(output, domainStatusResult...)				
+				output = append(output, domainStatusResult...)
 			}
-        }
-    }
-    return output
+		}
+	}
+	return output
 }
 
 func processDomainStatus(extractedDomainsStatus []interface{}) []string {
@@ -92,7 +90,7 @@ func processDomainStatus(extractedDomainsStatus []interface{}) []string {
 
 	for _, domainArray := range extractedDomainsStatus {
 		if domains, ok := domainArray.(map[string]interface{}); ok {
-			
+
 			record := fmt.Sprintf("%s | %s | %s", domains["domainName"], domains["status"], domains["expiryDate"])
 			fmt.Println(record)
 		}

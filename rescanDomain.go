@@ -7,14 +7,19 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	// "time"
 )
 
-// Function to get emails
-func getEmails(domains []string, wkspId string) {
-	// Prepare request data
-	endpoint := fmt.Sprintf("%s/getEmails?wkspId=%s", apiBaseURL, wkspId)
-	requestBody, err := json.Marshal(map[string]interface{}{
-		"domains": domains,
+type RescanDomainResponse struct {
+	Message   string `json:"message"`
+	TotalUrls int    `json:"totalUrls"`
+}
+
+func rescanDomain(domain string) {
+	endpoint := fmt.Sprintf("%s/rescanDomain", apiBaseURL)
+
+	requestBody, err := json.Marshal(map[string]string{
+		"domain": domain,
 	})
 	if err != nil {
 		fmt.Println("Error creating request body:", err)
@@ -30,7 +35,6 @@ func getEmails(domains []string, wkspId string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
-	// Send the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -39,32 +43,19 @@ func getEmails(domains []string, wkspId string) {
 	}
 	defer resp.Body.Close()
 
-	// Read the response
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response:", err)
 		return
 	}
 
-	// Parse and print JSON response
-	var result map[string]interface{}
+	var result RescanDomainResponse
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		fmt.Println("Error parsing JSON:", err)
 		return
 	}
 
-	// Pretty print JSON
-	emails, ok := result["emails"].([]interface{})
-	if !ok {
-		fmt.Println("Error: 'email' field not found or not in expected format")
-		return
-	}
-	for _, path := range emails {
-		if pathStr, ok := path.(string); ok {
-			fmt.Println(pathStr)
-		} else {
-			fmt.Println("Error: Invalid type in 'emails'")
-		}
-	}
+	fmt.Printf("Message: %s\n", result.Message)
+	fmt.Printf("Total URLs submitted for scanning: %d\n", result.TotalUrls)
 }

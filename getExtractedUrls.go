@@ -3,16 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
 	"io"
+	"net/http"
 	urlPkg "net/url"
 	"path/filepath"
+	"strings"
 )
 
-func getAllFileExtensionUrls(input string, extensions []string, size int) {
-	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
-	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "fileExtensionUrls", input ,size, 0, "desc", "fileExtensionUrls")
+func getAllFileExtensionUrls(input string, extensions []string, size int, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getAllAutomationResults?wkspId=%s", apiBaseURL, wkspId)
+	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "fileExtensionUrls", input, size, 0, "desc", "fileExtensionUrls")
 
 	// create request
 	req, err := http.NewRequest("GET", url, nil)
@@ -50,7 +50,7 @@ func getAllFileExtensionUrls(input string, extensions []string, size int) {
 	// maping the extensions to a map, while converting pdf to .pdf
 	extensionsMap := make(map[string]struct{}, 0)
 	for _, ext := range extensions {
-		extensionsMap["." + ext] = struct{}{}
+		extensionsMap["."+ext] = struct{}{}
 	}
 
 	// fmt.Println(response, "HELLP")
@@ -59,7 +59,7 @@ func getAllFileExtensionUrls(input string, extensions []string, size int) {
 	if err != nil {
 		return
 	}
-	
+
 	urls := captureResultsFromResponse(results, "fileExtensionUrls")
 	new_urls := make([]string, 0)
 
@@ -70,7 +70,7 @@ func getAllFileExtensionUrls(input string, extensions []string, size int) {
 				continue
 			}
 			ext := filepath.Ext(parsedURL.Path)
-			
+
 			if _, ok := extensionsMap[ext]; ok {
 				new_urls = append(new_urls, urlStr)
 			}
@@ -80,8 +80,8 @@ func getAllFileExtensionUrls(input string, extensions []string, size int) {
 	sendOutputToStdout(urls)
 }
 
-func getAllSocialMediaUrls(input string, size int) {
-	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
+func getAllSocialMediaUrls(input string, size int, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getAllAutomationResults?wkspId=%s", apiBaseURL, wkspId)
 	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "socialMediaUrls", input, size, 0, "desc", "createdAt")
 
 	// fmt.Println("URL :", url)
@@ -125,14 +125,14 @@ func getAllSocialMediaUrls(input string, size int) {
 	if err != nil {
 		return
 	}
-	
+
 	urls := captureResultsFromResponse(results, "socialMediaUrls")
-	
+
 	sendOutputToStdout(urls)
 }
 
-func getAllQueryParamsUrls(input string, size int) {
-	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
+func getAllQueryParamsUrls(input string, size int, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getAllAutomationResults?wkspId=%s", apiBaseURL, wkspId)
 	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "queryParamsUrls", input, size, 0, "desc", "createdAt")
 
 	// create request
@@ -173,13 +173,13 @@ func getAllQueryParamsUrls(input string, size int) {
 	if err != nil {
 		return
 	}
-	
+
 	urls := captureResultsFromResponse(results, "queryParamsUrls")
 	sendOutputToStdout(urls)
 }
 
-func getAllLocalhostUrls(input string, size int) {
-	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
+func getAllLocalhostUrls(input string, size int, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getAllAutomationResults?wkspId=%s", apiBaseURL, wkspId)
 	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "localhostUrls", input, size, 0, "desc", "localhostUrls")
 
 	// create request
@@ -221,13 +221,13 @@ func getAllLocalhostUrls(input string, size int) {
 	if err != nil {
 		return
 	}
-	
+
 	urls := captureResultsFromResponse(results, "localhostUrls")
 	sendOutputToStdout(urls)
 }
 
-func getAllFilteredPortUrls(input string, size int) {
-	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
+func getAllFilteredPortUrls(input string, size int, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getAllAutomationResults?wkspId=%s", apiBaseURL, wkspId)
 	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "filteredPortUrls", input, size, 0, "desc", "filteredPortUrls")
 
 	// create request
@@ -268,13 +268,13 @@ func getAllFilteredPortUrls(input string, size int) {
 	if err != nil {
 		return
 	}
-	
+
 	urls := captureResultsFromResponse(results, "filteredPortUrls")
 	sendOutputToStdout(urls)
 }
 
-func getAllS3DomainsInvalid(input string, size int){
-	endpoint := fmt.Sprintf("%s/getAllAutomationResults", apiBaseURL)
+func getAllS3DomainsInvalid(input string, size int, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getAllAutomationResults?wkspId=%s", apiBaseURL, wkspId)
 	url := fmt.Sprintf("%s?showonly=%s&inputType=domain&input=%s&size=%d&start=%d&sortOrder=%s&sortBy=%s", endpoint, "s3DomainsInvalid", input, size, 0, "desc", "s3DomainsInvalid")
 
 	// create request
@@ -315,16 +315,16 @@ func getAllS3DomainsInvalid(input string, size int){
 	if err != nil {
 		return
 	}
-	
+
 	urls := captureResultsFromResponse(results, "s3DomainsInvalid")
 	sendOutputToStdout(urls)
 }
 
 func extractResultsFromResponse(response map[string]interface{}) ([]interface{}, error) {
-    if results, ok := response["results"].([]interface{}); ok {
-        return results, nil
-    }
-    return nil, fmt.Errorf("data not found or not in expected format")
+	if results, ok := response["results"].([]interface{}); ok {
+		return results, nil
+	}
+	return nil, fmt.Errorf("data not found or not in expected format")
 }
 
 func captureResultsFromResponse(results []interface{}, field string) []string {
@@ -341,7 +341,7 @@ func captureResultsFromResponse(results []interface{}, field string) []string {
 						fmt.Println("Found Invalid URL format")
 					}
 				}
-			} 
+			}
 		}
 	}
 	return output

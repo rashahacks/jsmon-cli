@@ -1,14 +1,14 @@
 package main
+
 import (
 	"fmt"
-	"strings"
-	"net/http"
 	"io/ioutil"
+	"net/http"
+	"strings"
 )
 
-func getAutomationResultsByInput(inputType, value string){
-	endpoint := fmt.Sprintf("%s/getAllJsUrlsResults?inputType=%s&input=%s", apiBaseURL, inputType, value)
-
+func getAutomationResultsByInput(inputType, value string, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getAllJsUrlsResults?inputType=%s&input=%s&wkspId=%s", apiBaseURL, inputType, value, wkspId)
 
 	// Create a new HTTP request with the GET method
 	req, err := http.NewRequest("GET", endpoint, nil) // No need for request body in GET
@@ -45,5 +45,5 @@ func getAutomationResultsByInput(inputType, value string){
 		fmt.Printf("Error: Received status code %d\n", resp.StatusCode)
 		fmt.Println("Response:", string(body)) // Print the response even if it's an error
 	}
-    
+
 }

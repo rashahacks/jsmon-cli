@@ -10,9 +10,9 @@ import (
 )
 
 // Function to get API paths based on domains
-func getApiPaths(domains []string) {
+func getApiPaths(domains []string, wkspId string) {
 	// Prepare request data
-	endpoint := fmt.Sprintf("%s/apiPathfromDomain", apiBaseURL)
+	endpoint := fmt.Sprintf("%s/apiPathfromDomain?wkspId=%s", apiBaseURL, wkspId)
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"domains": domains,
 	})

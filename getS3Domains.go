@@ -10,9 +10,9 @@ import (
 )
 
 // Function to get API paths based on domains
-func getS3Domains(domains []string) {
+func getS3Domains(domains []string, wkspId string) {
 	// Prepare request data
-	endpoint := fmt.Sprintf("%s/getS3Domains", apiBaseURL)
+	endpoint := fmt.Sprintf("%s/getS3Domains?wkspId=%s", apiBaseURL, wkspId)
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"domains": domains,
 	})

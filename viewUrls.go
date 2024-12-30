@@ -17,8 +17,8 @@ type URLItem struct {
 	URL string `json:"url"`
 }
 
-func viewUrls(size int) {
-	endpoint := fmt.Sprintf("%s/searchAllUrls?size=%d&start=0", apiBaseURL, size) // Use the size parameter
+func viewUrls(size int, wkspId string) {
+	endpoint := fmt.Sprintf("%s/searchAllUrls?size=%d&start=0&wkspId=%s", apiBaseURL, size, wkspId) // Use the size parameter
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {

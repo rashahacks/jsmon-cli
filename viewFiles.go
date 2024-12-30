@@ -22,8 +22,8 @@ type FileItem struct {
 	CreatedAt string  `json:"createdAt"`
 }
 
-func viewFiles() {
-	endpoint := fmt.Sprintf("%s/viewFiles", apiBaseURL)
+func viewFiles(wkspId string) {
+	endpoint := fmt.Sprintf("%s/viewFiles?wkspId=%s", apiBaseURL, wkspId)
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {

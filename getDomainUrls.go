@@ -10,8 +10,8 @@ import (
 )
 
 // Function to get domain URLs
-func getDomainUrls(domains []string) {
-	endpoint := fmt.Sprintf("%s/getDomainsUrls", apiBaseURL)
+func getDomainUrls(domains []string, wkspId string) {
+	endpoint := fmt.Sprintf("%s/getDomainsUrls?wkspId=%s", apiBaseURL, wkspId)
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"domains": domains,
 	})

@@ -10,9 +10,9 @@ import (
 )
 
 // Function to get IP addresses based on domains
-func getAllIps(domains []string) {
+func getAllIps(domains []string, wkspId string) {
 	// Prepare request data
-	endpoint := fmt.Sprintf("%s/getIps", apiBaseURL)
+	endpoint := fmt.Sprintf("%s/getIps?wkspId=%s", apiBaseURL, wkspId)
 	requestBody, err := json.Marshal(map[string]interface{}{
 		"domains": domains,
 	})
