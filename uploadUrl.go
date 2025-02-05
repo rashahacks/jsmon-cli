@@ -7,10 +7,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	// "time"
 )
 
-func uploadUrlEndpoint(url string, customHeaders []string, wkspId string) {
+func uploadUrlEndpoint(url string, customHeaders []string, wkspId string) error {
 	endpoint := fmt.Sprintf("%s/uploadUrl?wkspId=%s", apiBaseURL, wkspId)
 
 	headerObjects := make([]map[string]string, 0)
@@ -28,14 +27,12 @@ func uploadUrlEndpoint(url string, customHeaders []string, wkspId string) {
 		"headers": headerObjects,
 	})
 	if err != nil {
-		fmt.Println("Error creating request body:", err)
-		return
+		return fmt.Errorf("error creating request body: %v", err)
 	}
 
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+		return fmt.Errorf("error creating request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -44,40 +41,35 @@ func uploadUrlEndpoint(url string, customHeaders []string, wkspId string) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return
+		return fmt.Errorf("error sending request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
-		return
+		return fmt.Errorf("error reading response: %v", err)
 	}
 
-	var result struct {
-		Message   string `json:"message"`
-		JsmonID   string `json:"jsmonId"`
-		Hash      string `json:"hash"`
-		CreatedAt int64  `json:"createdAt"`
-		URL       string `json:"url"`
+	// Parse response into a generic map
+	var response map[string]interface{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return fmt.Errorf("error parsing JSON response: %v", err)
 	}
 
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
-		return
+	// Pretty print the response
+	// prettyJSON, err := json.MarshalIndent(response, "", "    ")
+	// if err != nil {
+	// 	return fmt.Errorf("error formatting JSON response: %v", err)
+	// }
+	fmt.Println(string(response["message"].(string)))
+
+	// Check for jsmonId or fileId to determine if we need to get automation results
+	if jsmonID, ok := response["jsmonId"].(string); ok && jsmonID != "" {
+		getAutomationResultsByJsmonId(jsmonID, wkspId)
+	} else if fileID, ok := response["fileId"].(string); ok && fileID != "" {
+		// You can add handling for fileId here if needed
+		fmt.Printf("File ID received: %s\n", fileID)
 	}
 
-	fmt.Printf("{\n")
-	fmt.Printf("    \"message\": \"%s\",\n", result.Message)
-	fmt.Printf("    \"jsmonId\": \"%s\",\n", result.JsmonID)
-	fmt.Printf("    \"hash\": \"%s\",\n", result.Hash)
-	fmt.Printf("    \"createdAt\": %d,\n", result.CreatedAt)
-	fmt.Printf("    \"url\": \"%s\"\n", result.URL)
-	fmt.Printf("}\n")
-
-	if result.JsmonID != "" {
-		getAutomationResultsByJsmonId(result.JsmonID, wkspId)
-	}
+	return nil
 }

@@ -5,18 +5,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	// "time"
 )
 
-func callViewProfile() {
+func callViewProfile() error {
 	endpoint := fmt.Sprintf("%s/viewProfile", apiBaseURL)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		os.Exit(1)
+		return fmt.Errorf("error creating request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -25,21 +23,33 @@ func callViewProfile() {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error making request:", err)
-		os.Exit(1)
+		return fmt.Errorf("error making request: %v", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("invalid API Key")
+	}
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response body:", err)
-		os.Exit(1)
+		return fmt.Errorf("error reading response body: %v", err)
 	}
 
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
-		fmt.Println("Error unmarshalling response:", err)
-		os.Exit(1)
+		return fmt.Errorf("error unmarshalling response: %v", err)
+	}
+
+	if errMsg, ok := result["error"].(string); ok && errMsg != "" {
+		return fmt.Errorf("invalid API Key")
+	}
+
+	if status, ok := result["status"].(string); ok && status != "success" {
+		if message, ok := result["message"].(string); ok {
+			return fmt.Errorf("%s", message)
+		}
+		return fmt.Errorf("invalid API Key")
 	}
 
 	if data, ok := result["data"].(map[string]interface{}); ok {
@@ -58,7 +68,8 @@ func callViewProfile() {
 		}
 		filteredData, _ := json.MarshalIndent(filteredResult, "", "  ")
 		fmt.Println(string(filteredData))
-	} else {
-		fmt.Println("Error: Invalid response format")
+		return nil
 	}
+
+	return fmt.Errorf("invalid API Key")
 }

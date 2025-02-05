@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 	// "time"
 )
 
@@ -40,31 +39,31 @@ type AutomateScanDomainRequest struct {
 	Words  []string `json:"words"`
 }
 
-type AnalysisResult struct {
-	Message     string `json:"message"`
-	TotalChunks int    `json:"totalChunks"`
-}
+// type AnalysisResult struct {
+// 	Message     string `json:"message"`
+// 	TotalChunks int    `json:"totalChunks"`
+// }
 
-type ModuleScanResult struct {
-	Message string `json:"message"`
-	Data    []struct {
-		ModuleName string `json:"ModuleName"`
-		URL        string `json:"URL"`
-	} `json:"data"`
-}
+// type ModuleScanResult struct {
+// 	Message string `json:"message"`
+// 	Data    []struct {
+// 		ModuleName string `json:"ModuleName"`
+// 		URL        string `json:"URL"`
+// 	} `json:"data"`
+// }
 
-type ScanResponse struct {
-	Message          string           `json:"message"`
-	AnalysisResult   AnalysisResult   `json:"analysis_result"`
-	ModuleScanResult ModuleScanResult `json:"modulescan_result"`
-}
+// type ScanResponse struct {
+// 	Message          string           `json:"message"`
+// 	AnalysisResult   AnalysisResult   `json:"analysis_result"`
+// 	ModuleScanResult ModuleScanResult `json:"modulescan_result"`
+// }
 
-type AutomateScanDomainResponse struct {
-	Message       string       `json:"message"`
-	FileId        string       `json:"fileId"`
-	TrimmedDomain string       `json:"trimmedDomain"`
-	ScanResponse  ScanResponse `json:"scanResponse"`
-}
+// type AutomateScanDomainResponse struct {
+// 	Message       string       `json:"message"`
+// 	FileId        string       `json:"fileId"`
+// 	TrimmedDomain string       `json:"trimmedDomain"`
+// 	ScanResponse  ScanResponse `json:"scanResponse"`
+// }
 
 type URLEntry struct {
 	URL string `json:"url"`
@@ -180,7 +179,7 @@ func uploadFileEndpoint(filePath string, headers []string, wkspId string) {
 
 }
 
-func automateScanDomain(domain string, words []string, wkspId string) {
+func automateScanDomain(domain string, words []string, wkspId string) error {
 	fmt.Printf("automateScanDomain called with domain: %s and words: %v\n", domain, words)
 	endpoint := fmt.Sprintf("%s/automateScanDomain?wkspId=%s", apiBaseURL, wkspId)
 
@@ -190,15 +189,13 @@ func automateScanDomain(domain string, words []string, wkspId string) {
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		fmt.Printf("failed to marshal request body: %v\n", err)
-		return
+		return fmt.Errorf("failed to marshal request body: %v", err)
 	}
 
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+		return fmt.Errorf("error creating request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -206,38 +203,45 @@ func automateScanDomain(domain string, words []string, wkspId string) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("failed to send request: %v\n", err)
-		return
+		return fmt.Errorf("failed to send request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	var fileId string
-	decoder := json.NewDecoder(resp.Body)
-	for {
-		var response map[string]interface{}
-		err := decoder.Decode(&response)
-		if err != nil {
-			if err == io.EOF {
-				break
+	responseBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %v", err)
+	}
+	var response map[string]interface{}
+	if err := json.Unmarshal(responseBody, &response); err != nil {
+		return fmt.Errorf("failed to parse response body: %v", err)
+	}
+
+	if message, ok := response["message"].(string); ok {
+		fmt.Printf("Message: %s\n", message)
+	}
+	if fileId, ok := response["fileId"].(string); ok {
+		fmt.Printf("File ID: %s\n", fileId)
+	}
+	if normalizedDomain, ok := response["normalizedDomain"].(string); ok {
+		fmt.Printf("Normalized Domain: %s\n", normalizedDomain)
+	}
+	if responseFile, ok := response["responseFile"].(map[string]interface{}); ok {
+		if analysisResult, ok := responseFile["analysis_result"].(map[string]interface{}); ok {
+
+			if message, ok := analysisResult["response"].(string); ok {
+				fmt.Printf("Analysis Result Message: %s\n", message)
 			}
-			fmt.Printf("failed to unmarshal JSON response: %v\n", err)
-			return
 		}
+		if message, ok := responseFile["message"].(string); ok {
+			fmt.Printf("Analysis Result Message: %s\n", message)
+		}
+		if moduleScanResult, ok := responseFile["modulescan_result"].(map[string]interface{}); ok {
 
-		if id, ok := response["fileId"]; ok {
-			fileId = id.(string)
-			fmt.Printf("File ID received: %s\n", fileId)
-			break
+			if message, ok := moduleScanResult["response"].(string); ok {
+				fmt.Printf("Module Scan Message: %s\n", message)
+			}
 		}
 	}
 
-	if fileId == "" {
-		fmt.Println("No File ID received from the scan.")
-		return
-	}
-
-	fmt.Println("Waiting for scan to complete...")
-	time.Sleep(10 * time.Second)
-
-	getAutomationResultsByFileId(fileId, wkspId)
+	return nil
 }
