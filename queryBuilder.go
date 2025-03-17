@@ -6,66 +6,64 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 )
 
-// Function to get API paths based on domains
-func getS3Domains(domains []string, wkspId string) {
-	// Prepare request data
-	endpoint := fmt.Sprintf("%s/getS3Domains?wkspId=%s", apiBaseURL, wkspId)
+func queryBuilder(wkspId, query string) {
+	// POST request to the queryBuilder endpoint
+	endpoint := fmt.Sprintf("%s/queryBuilder?wkspId=%s", apiBaseURL, wkspId)
+
+	// Create the request body
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"domains": domains,
+		"query": query, // The query string is passed here
 	})
 	if err != nil {
 		fmt.Printf("Failed to marshal request body: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
-	// Create request
+	// Create the HTTP POST request
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestBody))
 	if err != nil {
 		fmt.Printf("Failed to create request: %v\n", err)
-		return
+		os.Exit(1)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()) )// Assuming a function to get the API key
 
-	// Send request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Failed to send request: %v\n", err)
-		return
+		os.Exit(1)
 	}
 	defer resp.Body.Close()
 
-	// Read response
+	// Read and handle the response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Failed to read response body: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
-	// Parse response
+	// Parse the response
 	var response map[string]interface{}
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		fmt.Printf("Failed to unmarshal JSON response: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
-	// Extract and print the data in the desired format
-	// message, ok := response["message"].(string)
-	// if ok {
-	// 	fmt.Println(message)
-	// }
-
-	s3Domains, ok := response["s3Domains"].([]interface{})
-	if ok && len(s3Domains) > 0 {
-		for _, domain := range s3Domains {
-			if domainStr, ok := domain.(string); ok {
-				fmt.Println(domainStr)
-			}
+	if urls, ok := response["urls"].([]interface{}); ok {
+		for _, url := range urls {
+			fmt.Println(url)
 		}
 	}
+
+	if paginatedResults, ok := response["paginatedResults"].([]interface{}); ok {
+		for _, result := range paginatedResults {
+			fmt.Println(result)
+		}
+	} 
 }
