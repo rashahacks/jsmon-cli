@@ -115,6 +115,9 @@ func main() {
 	listWorkspacesFlag := flag.Bool("workspaces", false, "List all available workspaces")
 	getScannerResultsFlag := flag.Bool("secrets", false, "View Keys & Secrets by domain name")
 	query := flag.String("query", "", "Enable query builder functionality")
+	workspaceShort := flag.String("cw", "", "Create a new workspace (Example: -cw nandini)")
+	workspaceLong := flag.String("createWorkspace", "", "Create a new workspace (Example: -createWorkspace nandini)")
+
 
 	// cron := flag.String("cron", "", "Set cronjob.")
 	// cronNotification := flag.String("channel", "", "Set cronjob notification channel.")
@@ -263,6 +266,10 @@ func main() {
 			os.Exit(1)
 		}
 		uploadFileEndpoint(*uploadFile, headers, *workspaceFlag)
+	case *workspaceShort != "":
+		createWorkspace(*workspaceShort)
+	case *workspaceLong != "":
+		createWorkspace(*workspaceLong)
 	case *viewurls:
 		if *workspaceFlag == "" {
 			fmt.Println("No workspace specified. Use -workspaces to list available workspaces and provide a workspace ID using the -wksp flag.")
