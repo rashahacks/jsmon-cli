@@ -51,7 +51,13 @@ func createWorkspace(workspace string) {
 		os.Exit(1)
 	}
 
-	if message, ok := response["message"].(string); ok {
+	// Print the entire response for debugging
+	// fmt.Printf("Response: %+v\n", response)
+
+	// Extract and print workspace details
+	if workspaceID, ok := response["workspaceId"].(string); ok {
+		fmt.Printf("Workspace created successfully! ID: %s\n", workspaceID)
+	} else if message, ok := response["message"].(string); ok {
 		fmt.Println(message)
 	} else {
 		fmt.Println("Unexpected response format:", response)
