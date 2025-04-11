@@ -3,10 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
-	// "time"
 )
 
 func getDomains(wkspId string) {
@@ -29,7 +28,12 @@ func getDomains(wkspId string) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusUnauthorized {
+		fmt.Println("[ERR] Wrong API key")
+		return
+	}
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response:", err)
 		return
@@ -42,7 +46,6 @@ func getDomains(wkspId string) {
 		return
 	}
 
-	// Print each domain on a new line
 	for _, domain := range domains {
 		fmt.Println(domain)
 	}

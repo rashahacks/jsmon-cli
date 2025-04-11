@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -34,7 +34,7 @@ func getAutomationResultsByJsmonId(jsmonId string, wkspId string) {
 	defer resp.Body.Close()
 
 	// Read the response body
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Failed to read response: %v\n", err)
 		return
@@ -43,7 +43,7 @@ func getAutomationResultsByJsmonId(jsmonId string, wkspId string) {
 	// Check if the response is successful (Status Code: 2xx)
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		// Print the response with all fields related to the jsmonId
-		var result interface{}
+		var result map[string]interface{}
 		err = json.Unmarshal(body, &result)
 		if err != nil {
 			fmt.Println("Error parsing JSON:", err)
@@ -51,15 +51,12 @@ func getAutomationResultsByJsmonId(jsmonId string, wkspId string) {
 		}
 
 		// Assert that result is of type map[string]interface{}
-		if resMap, ok := result.(map[string]interface{}); ok {
+		if val, ok := result["results"]; ok {
+			switch v := val.(type) {
 			// Access the "results" key
-			if results, ok := resMap["results"].([]interface{}); ok {
-				if len(results) > 0 {
-					// Access the first element
-					firstElement := results[0]
-
-					// Print the first element as a pretty JSON string
-					prettyJSON, err := json.MarshalIndent(firstElement, "", "  ")
+			case []interface{}:
+				if len(v) > 0 {
+					prettyJSON, err := json.MarshalIndent(v[0], "", "  ")
 					if err != nil {
 						fmt.Println("Error formatting JSON:", err)
 						return
@@ -69,11 +66,11 @@ func getAutomationResultsByJsmonId(jsmonId string, wkspId string) {
 				} else {
 					fmt.Println("Results array is empty.")
 				}
-			} else {
-				fmt.Println("results is not of type []interface{}")
-			}
+			default:
+				fmt.Printf("[ERR] Unexpected type for 'results': %T\n", v)
+			} 
 		} else {
-			fmt.Println("result is not of type map[string]interface{}")
+			fmt.Println("No 'results' key found in response.")
 		}
 	} else {
 		fmt.Printf("Error: Received status code %d\n", resp.StatusCode)

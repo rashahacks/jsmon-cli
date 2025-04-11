@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -68,7 +68,7 @@ func StartCron(cronNotification string, cronTime int64, cronType string, cronDom
 		return
 	}
 
-	req.Body = ioutil.NopCloser(bytes.NewReader(jsonData))
+	req.Body = io.NopCloser(bytes.NewReader(jsonData))
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -77,7 +77,7 @@ func StartCron(cronNotification string, cronTime int64, cronType string, cronDom
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("failed to read response body: %v", err)
 		return
@@ -114,7 +114,7 @@ func StopCron() {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("failed to read response body: %v", err)
 		return
@@ -190,7 +190,7 @@ func UpdateCron(cronNotification string, cronType string, cronDomain string, cro
 		return
 	}
 
-	req.Body = ioutil.NopCloser(bytes.NewReader(jsonData))
+	req.Body = io.NopCloser(bytes.NewReader(jsonData))
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -199,7 +199,7 @@ func UpdateCron(cronNotification string, cronType string, cronDomain string, cro
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("failed to read response body: %v", err)
 		return

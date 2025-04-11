@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	// "time"
@@ -47,12 +47,12 @@ func compareEndpoint(id1, id2 string, wkspId string) {
 
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("Unexpected status code: %d\n", resp.StatusCode)
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		fmt.Printf("Response: %s\n", string(body))
 		return
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response:", err)
 		return

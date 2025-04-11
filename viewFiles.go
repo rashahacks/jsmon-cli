@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -24,38 +24,49 @@ type FileItem struct {
 
 func viewFiles(wkspId string) {
 	endpoint := fmt.Sprintf("%s/viewFiles?wkspId=%s", apiBaseURL, wkspId)
-	client := &http.Client{}
+	
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
-		fmt.Println("Error creating request:", err)
+		fmt.Printf("[ERR] Error creating request: %v\n", err)
 		return
 	}
 
 	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Failed to send request: %v", err)
+		fmt.Printf("[ERR] Failed to send request: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusUnauthorized {
+		fmt.Println("[ERR] Wrong API key")
+		return
+	}
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Failed to read response body: %v", err)
+		fmt.Printf("[ERR] Failed to read response body: %v\n", err)
 		return
 	}
 
 	var response FileResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
-		fmt.Printf("Failed to unmarshal JSON response: %v", err)
+		fmt.Printf("[ERR] Failed to unmarshal JSON response: %v\n", err)
 		return
 	}
 
-	fmt.Println(response.Message)
-	for _, fileItem := range response.Data {
-		fmt.Printf("File Name: %s\nFile Size: %.3f MB\nFile ID: %s\nFile Key: %s\nNumber of URLs: %d\nCreated At: %s\n\n",
-			fileItem.FileName, fileItem.FileSize, fileItem.FileID, fileItem.FileKey, fileItem.Urls, fileItem.CreatedAt)
+	if len(response.Data) > 0 {
+		jsonResponse, err := json.MarshalIndent(response.Data, "", "  ")
+		if err != nil {
+			fmt.Printf("[ERR] Failed to marshal JSON: %v\n", err)
+			return
+		}
+		fmt.Println(string(jsonResponse))
+	} else {
+		fmt.Println("[INF] No files found.")
 	}
 }

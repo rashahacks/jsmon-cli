@@ -11,7 +11,7 @@ func getAutomationResultsByInput(inputType, value string, wkspId string) {
 	endpoint := fmt.Sprintf("%s/getAllJsUrlsResults?inputType=%s&input=%s&wkspId=%s", apiBaseURL, inputType, value, wkspId)
 
 	// Create a new HTTP request with the GET method
-	req, err := http.NewRequest("GET", endpoint, nil) // No need for request body in GET
+	req, err := http.NewRequest("POST", endpoint, nil) // No need for request body in GET
 	if err != nil {
 		fmt.Printf("Failed to create request: %v\n", err)
 		return
@@ -29,6 +29,11 @@ func getAutomationResultsByInput(inputType, value string, wkspId string) {
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		fmt.Println("[ERR] Wrong API key")
+		return 
+	}
 
 	// Read the response body
 	body, err := io.ReadAll(resp.Body)

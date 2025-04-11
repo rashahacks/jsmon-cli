@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -36,7 +36,12 @@ func searchUrlsByDomain(domain string, wkspId string) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusUnauthorized {
+		fmt.Println("[ERR] Wrong API key")
+		return 
+	}
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response:", err)
 		return
@@ -49,8 +54,8 @@ func searchUrlsByDomain(domain string, wkspId string) {
 		return
 	}
 
-	fmt.Printf("Message: %s\n", result.Message)
-	fmt.Printf("Total URLs: %d\n", result.TotalUrls)
+	// fmt.Printf("Message: %s\n", result.Message)
+	// fmt.Printf("Total URLs: %d\n", result.TotalUrls)
 	fmt.Println("URLs:")
 	for _, entry := range result.URLs {
 		fmt.Printf("- %s\n", entry.URL)
