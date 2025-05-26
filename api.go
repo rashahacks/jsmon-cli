@@ -9,7 +9,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
-	"net/url"
+	"unicode/utf8"
+	// "net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,115 +45,125 @@ type URLEntry struct {
 	URL string `json:"url"`
 }
 
-// Function :
 
 func uploadFileEndpoint(filePath string, headers []string, wkspId string) {
-	endpoint := fmt.Sprintf("%s/uploadFile?wkspId=%s", apiBaseURL, wkspId)
+    endpoint := fmt.Sprintf("%s/uploadFile?wkspId=%s", apiBaseURL, wkspId)
+    
+    if len(headers) > 0 {
+        headersJSON, err := json.Marshal(headers)
+        if err != nil {
+            log.Fatalf("Error marshaling headers: %v", err)
+        }
+        endpoint = fmt.Sprintf("%s&headers=%s", endpoint, string(headersJSON))
+    }
 
-	headerMaps := []map[string]string{}
+    file, err := os.Open(filePath)
+    if err != nil {
+        log.Fatalf("Error opening file: %v", err)
+    }
+    defer file.Close()
 
-	// Parse headers into the correct format
-	for _, header := range headers {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			headerMaps = append(headerMaps, map[string]string{key: value})
-		}
-	}
+    // Read and validate file content
+    content, err := io.ReadAll(file)
+    if err != nil {
+        log.Fatalf("Error reading file: %v", err)
+    }
 
-	headersJSON, err := json.Marshal(headerMaps)
-	if err != nil {
-		log.Fatalf("Error marshaling headers to JSON: %v", err)
-	}
+    // Check if content is valid UTF-8
+    if !utf8.Valid(content) {
+        log.Fatalf("File content is not valid UTF-8")
+    }
 
-	// Create query parameters
-	queryParams := url.Values{}
-	queryParams.Add("headers", string(headersJSON))
+    // Count lines and validate URLs
+    lines := strings.Split(string(content), "\n")
+    validURLCount := 0
+    for _, line := range lines {
+        line = strings.TrimSpace(line)
+        if line != "" && strings.HasPrefix(line, "http") {
+            validURLCount++
+        }
+    }
+    fmt.Printf("Found %d valid URLs in file\n", validURLCount)
 
-	// Append query parameters to the endpoint URL
-	endpoint = fmt.Sprintf("%s?%s", endpoint, queryParams.Encode())
+    if validURLCount == 0 {
+        log.Fatalf("No valid URLs found in file")
+    }
+    if validURLCount > 1000 {
+        log.Fatalf("Too many URLs in file (max 1000)")
+    }
 
-	// Log the final endpoint URL for debugging
-	// log.Printf("Final endpoint URL: %s", endpoint)
+    // Reset file pointer
+    file.Seek(0, 0)
 
-	file, err := os.Open(filePath)
-	if err != nil {
-		log.Fatalf("Error opening file: %v", err)
-	}
-	defer file.Close()
+    // Create multipart form
+    var requestBody bytes.Buffer
+    writer := multipart.NewWriter(&requestBody)
 
-	fileInfo, err := file.Stat()
-	if err != nil {
-		log.Fatalf("Error getting file info: %v", err)
-	}
-	if fileInfo.Size() > 10*1024*1024 {
-		log.Fatalf("File size exceeds limit")
-	}
+    // Create form file part with explicit Content-Type
+    h := make(textproto.MIMEHeader)
+    h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filepath.Base(filePath)))
+    h.Set("Content-Type", "text/plain; charset=utf-8")
+    
+    part, err := writer.CreatePart(h)
+    if err != nil {
+        log.Fatalf("Error creating form file: %v", err)
+    }
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
+    _, err = io.Copy(part, bytes.NewReader(content))
+    if err != nil {
+        log.Fatalf("Error copying file data: %v", err)
+    }
 
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "file", filepath.Base(filePath)))
-	h.Set("Content-Type", "text/plain")
-	part, err := writer.CreatePart(h)
-	if err != nil {
-		log.Fatalf("Error creating form part: %v", err)
-	}
+    err = writer.Close()
+    if err != nil {
+        log.Fatalf("Error closing writer: %v", err)
+    }
 
-	_, err = io.Copy(part, file)
-	if err != nil {
-		log.Fatalf("Error copying file content: %v", err)
-	}
+    // Build HTTP request
+    req, err := http.NewRequest("POST", endpoint, &requestBody)
+    if err != nil {
+        log.Fatalf("Error creating HTTP request: %v", err)
+    }
 
-	err = writer.Close()
-	if err != nil {
-		log.Fatalf("Error closing multipart writer: %v", err)
-	}
+    // Set required headers
+    req.Header.Set("Content-Type", writer.FormDataContentType())
+    req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
 
-	req, err := http.NewRequest("POST", endpoint, body)
-	if err != nil {
-		log.Fatalf("Error creating request: %v", err)
-	}
+    // Debug output
+    // fmt.Printf("Sending request to: %s\n", endpoint)
+    // fmt.Printf("Content-Type: %s\n", writer.FormDataContentType())
+    // fmt.Printf("File size: %d bytes\n", len(content))
+    // fmt.Printf("API Key: %s\n", maskAPIKey(strings.TrimSpace(getAPIKey())))
 
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(getAPIKey()))
-	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+    // Execute request
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        log.Fatalf("Upload request failed: %v", err)
+    }
+    defer resp.Body.Close()
 
-	// log.Printf("File being uploaded: %s", filepath.Base(filePath))
-	// log.Printf("Request body length: %d bytes", body.Len())
-	// log.Printf("Request body content (first 200 bytes): %s", body.String()[:min(200, body.Len())])
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatalf("Error sending request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Error reading response: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		log.Fatalf("Upload failed with status code: %d", resp.StatusCode)
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(responseBody, &result); err != nil {
-		log.Fatalf("Failed to parse JSON response: %v", err)
-	}
-
-	fileID, ok := result["fileId"].(string)
-	if !ok {
-		fmt.Println("Error: fileId is not a string")
-		return
-	}
-	getAutomationResultsByFileId(fileID, wkspId)
-
+    // Read and handle response
+    bodyBytes, _ := io.ReadAll(resp.Body)
+    
+    if resp.StatusCode == http.StatusOK {
+        fmt.Println("File uploaded successfully!")
+        fmt.Println("Response:", string(bodyBytes))
+    } else {
+        fmt.Printf("Upload failed with status code: %d\n", resp.StatusCode)
+        // fmt.Printf("Response headers: %v\n", resp.Header)
+        // fmt.Println("Response body:", string(bodyBytes))
+    }
 }
+
+// Helper function to mask API key for logging
+func maskAPIKey(key string) string {
+    if len(key) <= 8 {
+        return "****"
+    }
+    return key[:4] + "..." + key[len(key)-4:]
+}
+
 
 func automateScanDomain(domain string, words []string, wkspId string) error {
 	// fmt.Printf("automateScanDomain called with domain: %s and words: %v\n", domain, words)
