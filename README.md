@@ -14,12 +14,14 @@ JSMON CLI is a command-line interface for interacting with the jsmon.sh web appl
 - View user profile and usage information
 
 ## Installation
+
 Ensure you have Golang installed on your system. If not, download and install it from golang.org.
 Then, clone the repository and build the binary:
 ```
 git clone https://github.com/rashahacks/jsmon-cli
 cd jsmon-cli
-go build -o jsmon
+go mod download
+go build -o jsmon-cli
 ```
 Alternatively, you can install it directly using:
 ```
@@ -27,8 +29,9 @@ go install github.com/rashahacks/jsmon-cli@latest
 ```
 
 ## Usage
+
 Run the CLI tool using:
-`./jsmon [flags]`
+`jsmon-cli [flags]`
 
 ### Flags
 
@@ -36,9 +39,7 @@ Run the CLI tool using:
 - `-d string`: Domain to automate scan
 - `-f string`: File to upload (local path)
 - `-key string`: API key for authentication
-- `-fid string`: File ID to scan
 - `-jsi string`: Get all automation results
-- `-secrets`: Get scanner results
 - `-urls`: View all URLs
 - `-us int`: Number of URLs to fetch
 - `-w string`: Comma-separated list of words to include in the scan
@@ -46,62 +47,38 @@ Run the CLI tool using:
 - `-H string`: Add custom headers in the format 'Key: Value' (can be used multiple times)
 - `-profile`: View user profile
 - `-files`: View all files
-- `-emails string`: View all Emails for specified domains
-- `-buckets string`: Get all S3 Domains for specified domains
-- `-ips string`: Get all IPs for specified domains
-- `-domainUrls string`: Get Domain URLs for specified domains
-- `-apis string`: Get API paths for specified domains
 - `-query string`: string = <field=apiPaths domain=example.com page=1 sub=true>
-- `-compare string`: Compare two js responses by jsmon_ids (format: JSMON_ID1,JSMON_ID2)
 
 ## Authentication
 
-The CLI uses an API key for authentication. You can provide the API key using the `-apikey` flag or by storing it in `~/.jsmon/credentials`.
+The CLI uses an API key for authentication. You can provide the API key using the `-key` flag or by storing it in `~/.jsmon/credentials`.
 
 ## Example Commands
 
 1. Upload a URL for scanning:
-```./jsmon -u https://example.com/main.js -wksp <WORKSPACE_ID>```
+```jsmon-cli -u https://example.com/main.js -wksp <WORKSPACE_ID>```
 
 2. Upload a file containing JS URLs:
-```./jsmon -f jsurls.txt -wksp <WORKSPACE_ID>```
+```jsmon-cli -f jsurls.txt -wksp <WORKSPACE_ID>```
 
 3. Scan a domain, subdomain or URL:
-```./jsmon -d <sub.example.com> -wksp <WORKSPACE_ID>```
+```jsmon-cli -d <sub.example.com> -wksp <WORKSPACE_ID>```
 
 4. View user profile:
-```./jsmon -profile```
+```jsmon-cli -profile```
 
 5. Query Data from your account:
 ```
-./jsmon -query <field=apiPaths> -wksp <WORKSPACE_ID>
-./jsmon -query <field=extractedUrls> -wksp <WORKSPACE_ID>
-./jsmon -query <field=extractedDomains> -wksp <WORKSPACE_ID>
-./jsmon -query <field=emails> -wksp <WORKSPACE_ID>
-./jsmon -query <field=apiPaths domain=example.com page=2 sub=true> -wksp <WORKSPACE_ID>
+jsmon-cli -query field=apiPaths -wksp <WORKSPACE_ID>
+jsmon-cli -query field=extractedUrls -wksp <WORKSPACE_ID>
+jsmon-cli -query field=extractedDomains -wksp <WORKSPACE_ID>
+jsmon-cli -query field=emails -wksp <WORKSPACE_ID>
+jsmon-cli -query field=apiPaths domain=example.com page=2 sub=true> -wksp <WORKSPACE_ID>
 ```
 
-## Contributors and Maintainers
+## Query Guide
 
-- Inderjeet Singh
-  - [GitHub](https://github.com/encodedguy)
-  - [LinkedIn](https://www.linkedin.com/in/encodedguy/)
-  - [Twitter](https://x.com/3nc0d3dGuY)
-
-- Nadeem Ahmad
-  - [GitHub](https://github.com/Nadeem-Ahmad-25)
-  - [LinkedIn](https://www.linkedin.com/in/ndmxx0001/)
-  - [Twitter](https://x.com/NadeemAhmad97)
-
-- Nandini Kumari
-  - [GitHub](https://github.com/nandini-56)
-  - [LinkedIn](https://www.linkedin.com/in/nandini-kumari-693257296/)
-  - [Twitter](https://x.com/Nandini17060041)
- 
-- Akash Litoriya
-  - [GitHub](https://github.com/akashlitoriya)
-  - [LinkedIn](https://www.linkedin.com/in/akashlitoriya/)
-  - [Twitter](https://x.com/akashhhh_l)
+Learn more about -query flags here via query guide: <a href="https://knowledge.jsmon.sh/query-data/query-guide">https://knowledge.jsmon.sh/query-data/query-guide</a>
 
 ## License
 
