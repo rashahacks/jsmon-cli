@@ -10,10 +10,41 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"github.com/fatih/color"
 )
 
 type stringSliceFlag []string
+
+var (
+	silentFlag               bool
+	uploadUrl                *string
+	apiKeyFlag               *string
+	updateFlag               *bool
+	scanFileId               *string
+	uploadFile               *string
+	getAllResults            *string
+	size                     *int
+	workspaceFlag            *string
+	listWorkspacesFlag       *bool
+	getScannerResultsFlag    *bool
+	query                    *string
+	workspaceShort           *string
+	workspaceLong            *string
+	viewurls                 *bool
+	scanDomainFlag           *string
+	wordsFlag                *string
+	urlswithmultipleResponse *bool
+	getDomainsFlag           *bool
+	headers                  stringSliceFlag
+	addCustomWordsFlag       *string
+	usageFlag                *bool
+	viewfiles                *bool
+	reverseSearchResults     *string
+	createWordListFlag       *string
+	searchUrlsByDomainFlag   *string
+	getResultByJsmonId       *string
+	getResultByFileId        *string
+	totalAnalysisDataFlag    *bool
+)
 
 type Workspace struct {
 	WkspId string `json:"wkspId"`
@@ -82,7 +113,7 @@ func displayWorkspaces() error {
 
 func showAvailableWorkspaces() error {
 	workspaces, err := getWorkspaces()
-	if err !=nil {
+	if err != nil {
 		fmt.Println(err)
 	}
 	fmt.Println("Available Workspaces:")
@@ -122,86 +153,47 @@ func init() {
 	// Remove the default -h / --help flag
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	flag.CommandLine.Usage = func() {} // or keep it empty if you want no help at all
+
+	// Define all flags
+	flag.BoolVar(&silentFlag, "st", false, "Run in silent mode (no banner output)")
+	uploadUrl = flag.String("u", "", "URL to upload for scanning")
+	apiKeyFlag = flag.String("key", "", "API key for authentication")
+	updateFlag = flag.Bool("ud", false, "Update jsmon-cli to the latest version")
+	scanFileId = flag.String("fid", "", " File to be rescanned by fileId.")
+	uploadFile = flag.String("f", "", "File to upload giving path to the file locally.")
+	getAllResults = flag.String("jsi", "", "View JS Intelligence Data by domain name")
+	size = flag.Int("s", 100, "Number of results to fetch (default 100)")
+	workspaceFlag = flag.String("wksp", "", "Workspace ID")
+	listWorkspacesFlag = flag.Bool("workspaces", false, "List all available workspaces")
+	getScannerResultsFlag = flag.Bool("secrets", false, "View Keys & Secrets by domain name")
+	query = flag.String("query", "", "Enable query builder functionality")
+	workspaceShort = flag.String("cw", "", "Create a new workspace (Example: -cw nandini)")
+	workspaceLong = flag.String("createWorkspace", "", "Create a new workspace (Example: -createWorkspace nandini)")
+	viewurls = flag.Bool("urls", false, "view all urls")
+	scanDomainFlag = flag.String("d", "", "Domain to automate scan")
+	wordsFlag = flag.String("w", "", "Comma-separated list of words to include in the scan")
+	urlswithmultipleResponse = flag.Bool("curls", false, "View changed JS URLs.")
+	getDomainsFlag = flag.Bool("domains", false, "Get all domains for the user.")
+	flag.Var(&headers, "H", "Custom headers in the format 'Key: Value' (can be used multiple times)")
+	addCustomWordsFlag = flag.String("addCustomWords", "", "add custom words to the scan")
+	usageFlag = flag.Bool("profile", false, "View user profile")
+	viewfiles = flag.Bool("files", false, "view all files")
+	reverseSearchResults = flag.String("rsearch", "", "Specify the input type (e.g., emails, domainname)")
+	createWordListFlag = flag.String("wordlist", "", "creates a new word list from domains")
+	searchUrlsByDomainFlag = flag.String("urlsByDomain", "", "Search URLs by domain")
+	getResultByJsmonId = flag.String("jsiJsmonId", "", "Get JS Intelligence for the jsmon ID.")
+	getResultByFileId = flag.String("jsiFileId", "", "Get JS Intelligence for the file ID.")
+	totalAnalysisDataFlag = flag.Bool("count", false, "total count of overall analysis data")
+
+	flag.Parse()
 }
 
 func main() {
-	showBanner()
-	displayVersion()
-	uploadUrl := flag.String("u", "", "URL to upload for scanning")
-	apiKeyFlag := flag.String("key", "", "API key for authentication")
-	updateFlag := flag.Bool("ud", false, "Update jsmon-cli to the latest version")
-	scanFileId := flag.String("fid", "", " File to be rescanned by fileId.")
-	uploadFile := flag.String("f", "", "File to upload giving path to the file locally.")
-	getAllResults := flag.String("jsi", "", "View JS Intelligence Data by domain name")
-	size := flag.Int("s", 100, "Number of results to fetch (default 100)")
-	workspaceFlag := flag.String("wksp", "", "Workspace ID")
-	listWorkspacesFlag := flag.Bool("workspaces", false, "List all available workspaces")
-	getScannerResultsFlag := flag.Bool("secrets", false, "View Keys & Secrets by domain name")
-	query := flag.String("query", "", "Enable query builder functionality")
-	workspaceShort := flag.String("cw", "", "Create a new workspace (Example: -cw nandini)")
-	workspaceLong := flag.String("createWorkspace", "", "Create a new workspace (Example: -createWorkspace nandini)")
-	viewurls := flag.Bool("urls", false, "view all urls")
-	scanDomainFlag := flag.String("d", "", "Domain to automate scan")
-	wordsFlag := flag.String("w", "", "Comma-separated list of words to include in the scan")
-	urlswithmultipleResponse := flag.Bool("curls", false, "View changed JS URLs.")
-	getDomainsFlag := flag.Bool("domains", false, "Get all domains for the user.")
-
-	var headers stringSliceFlag
-	flag.Var(&headers, "H", "Custom headers in the format 'Key: Value' (can be used multiple times)")
-
-	addCustomWordsFlag := flag.String("addCustomWords", "", "add custom words to the scan")
-	usageFlag := flag.Bool("profile", false, "View user profile")
-	viewfiles := flag.Bool("files", false, "view all files")
-	reverseSearchResults := flag.String("rsearch", "", "Specify the input type (e.g., emails, domainname)")
-	createWordListFlag := flag.String("wordlist", "", "creates a new word list from domains")
-	searchUrlsByDomainFlag := flag.String("urlsByDomain", "", "Search URLs by domain")
-	getResultByJsmonId := flag.String("jsiJsmonId", "", "Get JS Intelligence for the jsmon ID.")
-	getResultByFileId := flag.String("jsiFileId", "", "Get JS Intelligence for the file ID.")
-	totalAnalysisDataFlag := flag.Bool("count", false, "total count of overall analysis data")
-	flag.Parse()
-
-	flag.Usage = func() {
-
-		section := color.New(color.FgHiYellow, color.Bold)
-		option := color.New(color.FgHiGreen)
-
-		flag.Parse()
-
-		section.Fprintf(os.Stderr, "\nSCAN:\n")
-		option.Fprintf(os.Stderr, "  -u <URL>          		URL to upload for scanning.\n")
-		option.Fprintf(os.Stderr, "  -f <local file path>          File to upload (local path)\n")
-		option.Fprintf(os.Stderr, "  -d <domainName>   		Domain to scan\n")
-
-		section.Fprintf(os.Stderr, "\nFETCH:\n")
-		option.Fprintf(os.Stderr, "  -jsi <domainName>             View JS Intelligence data by domain name\n")
-		option.Fprintf(os.Stderr, "  -urls                         View all URLs.\n")
-		option.Fprintf(os.Stderr, "  -files                        View all files.\n")
-		option.Fprintf(os.Stderr, "  -profile                      View user profile.\n")
-		option.Fprintf(os.Stderr, "  -curls                        View changed JS URLs.\n")
-		option.Fprintf(os.Stderr, "  -jsiJsmonId <ID>              Get automation results by jsmon ID.\n")
-		option.Fprintf(os.Stderr, "  -urlsByDomain <domain>        Search URLs by domain.\n")
-		option.Fprintf(os.Stderr, "  -count                        Get total count of overall analysis data.\n")
-		option.Fprintf(os.Stderr, "  -jsiFileId <ID>               Get automation results by file ID.\n")
-		option.Fprintf(os.Stderr, "  -domains                      Get all domains for the user.\n")
-		option.Fprintf(os.Stderr, "  -query <field>=<value>        Get all the data by Jsmon queries \n ")
-		option.Fprintf(os.Stderr, " -rsearch <field>=<value>      Search by field given in the description at the end.\n")
-
-		section.Fprintf(os.Stderr, "\nADDITIONAL OPTIONS:\n")
-		option.Fprintf(os.Stderr, "  -H <Key: Value>               Custom headers (can be used multiple times).\n")
-		option.Fprintf(os.Stderr, "  -w <words>                    Comma-separated list of words to include in the scan.\n")
-		option.Fprintf(os.Stderr, "  -ud                           Update jsmon-cli to the latest version\n")
-		option.Fprintf(os.Stderr, "  -st                           Run in silent mode (no banner output\n")
-		option.Fprintf(os.Stderr, "  -type <types>                 Specify file types (e.g., pdf,txt), use ',' as separator.\n")
-		option.Fprintf(os.Stderr, "  -cw OR -workspace <worspace>  Give the workspace you want to give.\n")
-		option.Fprintf(os.Stderr, "  -us int                       Number of URLs to fetch (default 10).\n")
-		option.Fprintf(os.Stderr, "  -key <uuid>                   API key for authentication\n\n")
-
-		section.Fprintf(os.Stderr, "[INF] Query Guide: `https://knowledge.jsmon.sh/query-data/query-guide`\n")
-		section.Fprintf(os.Stderr, "[INF] Available fields for -rsearch fields: emails, domainname, extracteddomains, s3domains, url, extractedurls, ipv4addresses, ipv6addresses, jwttokens, gqlquery, gqlmutation, guids, apipaths, vulnerabilities, nodemodules, domainstatus, queryparamsurls, socialmediaurls, filterdporturls, gqlfragment, s3domainsinvalid, fileextensionurls, localhosturls.")
-
+	if !silentFlag {
+		showBanner()
+		displayVersion()
 	}
 
-	flag.Parse()
 	if *updateFlag {
 		if err := updateCLI(); err != nil {
 			fmt.Println(err)
